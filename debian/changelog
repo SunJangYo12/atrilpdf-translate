@@ -1,0 +1,181 @@
+atril (1.12.2-1ubuntu0.3) xenial-security; urgency=medium
+
+  * SECURITY UPDATE: Arbitrary command injection via DVI filename injection
+    when printing to PDF (LP: #1759069).
+    - fix-CVE-2017-1000159.patch
+    - CVE-2017-1000159
+
+ -- Simon Quigley <tsimonq2@ubuntu.com>  Mon, 26 Mar 2018 18:29:46 -0500
+
+atril (1.12.2-1ubuntu0.2) xenial-security; urgency=medium
+
+  * SECURITY UPDATE: Command injection with cbt files (LP: #1735418).
+    - fix-CVE-2017-1000083.patch
+    - CVE-2017-1000083
+
+ -- Simon Quigley <tsimonq2@ubuntu.com>  Sun, 18 Mar 2018 23:41:35 -0500
+
+atril (1.12.2-1ubuntu0.1) xenial; urgency=medium
+
+  * fix-thumbnailer-crash.patch: new patch. Disables thumbnail generation
+    for epub documents, stopping atril-thumbnailer crashes (LP: #1540018)
+
+ -- Vlad Orlov <monsta@inbox.ru>  Mon, 30 Oct 2017 18:06:38 +0300
+
+atril (1.12.2-1) unstable; urgency=medium
+
+  [ Martin Wimpress ]
+  * New upstream release.
+  * debian/copyright:
+    + Update copyright attributions.
+  * debian/patches:
+    + Drop 2001_dont-ship-mathjax.patch. Applied upstream.
+  * debian/watch:
+    + Drop +repack suffix.
+  * debian/rules:
+    + Remove obsolete repacking.
+  * debian/control:
+    + Drop obsolete B-D and D (atril): mate-icon-theme.
+    + Versioned B-D: mate-common (>= 1.12), libcaja-extension-dev (>= 1.12) and
+      libmate-desktop-dev (>= 1.12).
+
+  [ Mike Gabriel ]
+  * debian/control:
+    + Add D (gir1.2-atril): libatrildocument3. (Closes: #799068).
+    + Versioned B-D: libgxps-dev (>= 0.2.0).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Sat, 02 Jan 2016 12:51:31 +0100
+
+atril (1.10.2+repack1-1) unstable; urgency=medium
+
+  [ Martin Wimpress ]
+  * New upstream release.
+  * debian/{libatrildocument3,atril}.install:
+    + Process with wrap-and-sort.
+  * debian/control:
+    + Clean up build dependencies. Process with wrap-and-sort.
+
+ -- Mike Gabriel <sunweaver@debian.org>  Wed, 02 Sep 2015 05:17:52 +0200
+
+atril (1.10.1+repack1-1) unstable; urgency=medium
+
+  [ Martin Wimpress ]
+  * debian/patches:
+    + Drop 0001_open-multiple-files.patch. Applied upstream.
+    + Drop 0002_forgotten-mutex-unlock.patch. Applied upstream.
+    + Drop 0003_bug-tracker-url.patch. Applied upstream.
+    + Drop 2001_omit-gfdl-licensed-help-files.patch. Help files are DFSG
+      compliant.
+  * debian/atril-common.install:
+    + Add usr/share/{appdata,caja/extensions,gtk-doc,help}
+  * debian/atril.install:
+    + Add usr/lib/*/{atrild,atril-convert-metadata}.
+    + Remove usr/share/MateConf/gettings/atril.convert.
+  * debian/control:
+    + Update for new upstream release.
+    + Remove cdbs.
+  * debian/gir1.2-atril.install:
+    + New package.
+  * debian/watch:
+    + Remove +dfsg1 suffix.
+  * debian/rules:
+    + Update for new release.
+
+  [ Mike Gabriel ]
+  * debian/copyright:
+    + Use same indentation style for help/ files.
+  * debian/control:
+    + Add Martin Wimpress to Uploaders: field.
+  * Don't ship embedded MathJax Javascript library. Use Debian's version of
+    libjs-mathjax instead. This requires repacking atril's orig tarball (for
+    dropping the embedded code).
+  * debian/*.symbols:
+    + Update .symbols files for shared libraries.
+  * debian/*.install:
+    + Fix various install locations for this new upstream release.
+
+ -- Mike Gabriel <sunweaver@debian.org>  Mon, 24 Aug 2015 12:53:51 +0200
+
+atril (1.8.1+dfsg1-5) unstable; urgency=medium
+
+  * debian/patches:
+    + Add 0003_bug-tracker-url.patch. Point to the Github issue tracker
+      where atril sources are hosted. (Closes: #780500).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Thu, 28 May 2015 10:44:35 +0200
+
+atril (1.8.1+dfsg1-4) unstable; urgency=medium
+
+  * debian/patches:
+    + Add 0002_forgotten-mutex-unlock.patch. Don't forget to unlock the
+      trylock'ed mutex. Prevents from unpredictable behaviour after that
+      mutex unlocking has been forgotten. (Closes: #779848).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Mon, 09 Mar 2015 09:26:24 +0100
+
+atril (1.8.1+dfsg1-3) unstable; urgency=medium
+
+  * debian/patches:
+    + Add 0001_open-multiple-files.patch. Allow selecting multiple files
+      and opening them in Atril. (Closes: #772014).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Thu, 04 Dec 2014 12:32:18 +0100
+
+atril (1.8.1+dfsg1-2) unstable; urgency=medium
+
+  [ Vangelis Mouhtsis ]
+  * debian/control: Bump Standards: to 3.9.6.
+    + No changes needed.
+
+  [ Mike Gabriel ]
+  * debian/rules:
+    + Use upstream's NEWS file as upstream ChangeLog.
+  * debian/rules:
+    + Drop libatril-properties-page.la on non-amd64 builds, as well.
+  * debian/copyright:
+    + Drop information of ev-version.h. Not shipped in upstream sources
+      anymore.
+
+ -- Mike Gabriel <sunweaver@debian.org>  Sat, 25 Oct 2014 18:45:13 +0200
+
+atril (1.8.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/patches:
+    + Drop 1001_add-keywords-key-to-desktop-files.patch. Applied upstream.
+    + Drop 1002_FTBFS-atril-with-clang.patch. Applied upstream.
+  * debian/copyright:
+    + Really mention all upstream files.
+    + Fix short license names in two locations.
+    + Remove duplicate file paragraph for po/*.po.
+
+ -- Mike Gabriel <sunweaver@debian.org>  Mon, 29 Sep 2014 10:47:57 +0200
+
+atril (1.8.0+dfsg1-4) unstable; urgency=medium
+
+  * debian/control:
+    + Modify B-D: libtiff4-dev -> libtiff-dev. (Closes: #753820).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Tue, 08 Jul 2014 01:15:47 +0200
+
+atril (1.8.0+dfsg1-3) unstable; urgency=medium
+
+  * debian/patches:
+    + Add 1002_FTBFS-atril-with-clang.patch. Fix FTBFS when build with clang.
+      (Closes: #753344).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Tue, 01 Jul 2014 20:16:19 +0200
+
+atril (1.8.0+dfsg1-2) unstable; urgency=low
+
+  * debian/control:
+    + Drop B-D: libt1-dev. Package has been removed from Debian unstable.
+      (For reference see #638759 and #744881).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Mon, 05 May 2014 08:39:16 +0200
+
+atril (1.8.0+dfsg1-1) unstable; urgency=low
+
+  * Initial release. (Closes: #734911).
+
+ -- Mike Gabriel <sunweaver@debian.org>  Wed, 30 Apr 2014 11:47:31 +0200

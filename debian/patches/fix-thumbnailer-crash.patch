@@ -1,0 +1,23 @@
+From b479e541d113881b10ef7c0641688d62600c79a9 Mon Sep 17 00:00:00 2001
+From: monsta <monsta@inbox.ru>
+Date: Mon, 31 Oct 2016 11:49:47 +0300
+Subject: [PATCH] thumbnailer: skip epub files
+
+temporary workaround for stupid segfaults - until we implement
+proper thumbnailing in epub backend
+---
+ thumbnailer/Makefile.am | 1 +
+ 1 file changed, 1 insertion(+)
+
+Index: atril-1.12.2/thumbnailer/Makefile.am
+===================================================================
+--- atril-1.12.2.orig/thumbnailer/Makefile.am
++++ atril-1.12.2/thumbnailer/Makefile.am
+@@ -33,6 +33,7 @@ thumbnailer_DATA = $(thumbnailer_in_file
+ atril.thumbnailer: $(thumbnailer_in_files)
+ 	$(AM_V_GEN)sed \
+ 		-e "s|\@ATRIL_MIME_TYPES\@|$(ATRIL_MIME_TYPES)|" \
++		-e "s|application/epub+zip;||" \
+ 		$< > $@
+ 
+ EXTRA_DIST =         	\
