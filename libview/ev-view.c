@@ -1435,28 +1435,6 @@ find_page_at_location (EvView  *view,
 	*page = -1;
 }
 
-static void
-debug_text_layout (EvView *view, gint page)
-{
-        EvRectangle *areas = NULL;
-        guint n_areas = 0;
-        guint i;
-
-        if (!ev_page_cache_get_text_layout(view->page_cache, page, &areas, &n_areas))
-            return;
-
-        g_print ("PAGE %d: %u text areas\n", page, n_areas);
-
-        for (i = 0; i < n_areas; i++) {
-                g_print ("  [%u] %.2f %.2f %.2f %.2f\n",
-                         i,
-                         areas[i].x1,
-                         areas[i].y1,
-                         areas[i].x2,
-                         areas[i].y2);
-        }
-}
-
 static gboolean
 location_in_text (EvView  *view,
 		  gdouble  x,
@@ -1471,7 +1449,6 @@ location_in_text (EvView  *view,
 	if (page == -1)
 		return FALSE;
 
-    debug_text_layout (view, page);
 
 	region = ev_page_cache_get_text_mapping (view->page_cache, page);
 
@@ -4059,6 +4036,71 @@ ev_view_point_in_test_paragraph(EvView *view, gdouble x, gdouble y)
 }
 
 
+static gboolean
+ev_view_get_text_rect_at_location (EvView       *view,
+                                   gdouble        x,
+                                   gdouble        y,
+                                   gint          *page,
+                                   EvRectangle  **rect,
+                                   guint         *rect_index)
+{
+	EvRectangle *areas = NULL;
+	guint n_areas = 0;
+	gint doc_x, doc_y;
+	guint i;
+
+	*page = -1;
+	*rect = NULL;
+	*rect_index = 0;
+
+	/*
+	 * Convert mouse position from view coordinates
+	 * to document coordinates.
+	 */
+	if (!get_doc_point_from_location (view,
+	                                  x,
+	                                  y,
+	                                  page,
+	                                  &doc_x,
+	                                  &doc_y))
+		return FALSE;
+
+	if (*page < 0)
+		return FALSE;
+
+	/*
+	 * Get text layout: one rectangle per glyph/character.
+	 */
+	if (!ev_page_cache_get_text_layout (view->page_cache,
+	                                    *page,
+	                                    &areas,
+	                                    &n_areas))
+		return FALSE;
+
+	if (!areas || n_areas == 0)
+		return FALSE;
+
+	/*
+	 * Find the glyph containing the mouse position.
+	 */
+	for (i = 0; i < n_areas; i++) {
+		EvRectangle *r = &areas[i];
+
+		if (doc_x >= r->x1 &&
+		    doc_x <= r->x2 &&
+		    doc_y >= r->y1 &&
+		    doc_y <= r->y2) {
+
+			*rect = r;
+			*rect_index = i;
+
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
 
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
@@ -4108,14 +4150,37 @@ ev_view_motion_notify_event (GtkWidget      *widget,
         }
     }
 
-
-
-
-
 	if (view->scroll_info.autoscrolling) {
 		view->scroll_info.last_y = y;
 		return TRUE;
 	}
+
+
+    {
+    	gint page;
+    	guint index;
+    	EvRectangle *rect;
+
+    	if (ev_view_get_text_rect_at_location (view,
+    	                                       x,
+    	                                       y,
+    	                                       &page,
+    	                                       &rect,
+    	                                       &index)) {
+
+    		g_print ("HOVER page=%d index=%u: "
+    		         "%.2f,%.2f %.2f,%.2f\n",
+    		         page,
+    		         index,
+    		         rect->x1,
+    		         rect->y1,
+    		         rect->x2,
+    		         rect->y2);
+    	}
+    }
+
+
+
 
 	if (view->selection_info.in_drag) {
 		if (gtk_drag_check_threshold (widget,
