@@ -4101,6 +4101,84 @@ ev_view_get_text_rect_at_location (EvView       *view,
 	return FALSE;
 }
 
+//fungsi mencari baris
+static gboolean
+ev_view_get_text_line_rect (EvView       *view,
+                            gint          page,
+                            guint         hover_index,
+                            GdkRectangle *line_rect)
+{
+	EvRectangle *areas = NULL;
+	guint n_areas = 0;
+	EvRectangle *hover;
+	gdouble line_y;
+	gdouble tolerance = 3.0;
+	guint i;
+	gboolean found = FALSE;
+
+	if (!ev_page_cache_get_text_layout (view->page_cache,
+	                                    page,
+	                                    &areas,
+	                                    &n_areas))
+		return FALSE;
+
+	if (!areas || n_areas == 0 || hover_index >= n_areas)
+		return FALSE;
+
+	hover = &areas[hover_index];
+
+	/*
+	 * Gunakan posisi vertikal karakter yang sedang di-hover
+	 * sebagai referensi baris.
+	 */
+	line_y = (hover->y1 + hover->y2) / 2.0;
+
+	/*
+	 * Cari semua glyph yang berada pada baris yang sama.
+	 */
+	for (i = 0; i < n_areas; i++) {
+		EvRectangle *r = &areas[i];
+		gdouble center_y;
+
+		center_y = (r->y1 + r->y2) / 2.0;
+
+		if (fabs (center_y - line_y) <= tolerance) {
+			if (!found) {
+				line_rect->x = (gint) r->x1;
+				line_rect->y = (gint) r->y1;
+				line_rect->width =
+					(gint) ceil (r->x2 - r->x1);
+				line_rect->height =
+					(gint) ceil (r->y2 - r->y1);
+
+				found = TRUE;
+			} else {
+				gint x2;
+				gint y2;
+
+				x2 = (gint) ceil (r->x2);
+				y2 = (gint) ceil (r->y2);
+
+				if ((gint) r->x1 < line_rect->x)
+					line_rect->x = (gint) r->x1;
+
+				if ((gint) r->y1 < line_rect->y)
+					line_rect->y = (gint) r->y1;
+
+				if (x2 > line_rect->x + line_rect->width)
+					line_rect->width =
+						x2 - line_rect->x;
+
+				if (y2 > line_rect->y + line_rect->height)
+					line_rect->height =
+						y2 - line_rect->y;
+			}
+		}
+	}
+
+	return found;
+}
+
 
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
@@ -4156,29 +4234,35 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	}
 
 
-    {
-    	gint page;
-    	guint index;
-    	EvRectangle *rect;
+{
+	gint page;
+	guint index;
+	EvRectangle *rect;
+	GdkRectangle line_rect;
 
-    	if (ev_view_get_text_rect_at_location (view,
-    	                                       x,
-    	                                       y,
-    	                                       &page,
-    	                                       &rect,
-    	                                       &index)) {
+	if (ev_view_get_text_rect_at_location (view,
+	                                       x,
+	                                       y,
+	                                       &page,
+	                                       &rect,
+	                                       &index)) {
 
-    		g_print ("HOVER page=%d index=%u: "
-    		         "%.2f,%.2f %.2f,%.2f\n",
-    		         page,
-    		         index,
-    		         rect->x1,
-    		         rect->y1,
-    		         rect->x2,
-    		         rect->y2);
-    	}
-    }
+		if (ev_view_get_text_line_rect (view,
+		                                page,
+		                                index,
+		                                &line_rect)) {
 
+			g_print ("LINE page=%d index=%u: "
+			         "%d,%d %dx%d\n",
+			         page,
+			         index,
+			         line_rect.x,
+			         line_rect.y,
+			         line_rect.width,
+			         line_rect.height);
+		}
+	}
+}
 
 
 
