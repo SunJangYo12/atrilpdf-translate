@@ -4013,6 +4013,19 @@ ev_view_scroll_drag_release (EvView *view)
 }
 
 static gboolean
+ev_view_point_in_test_paragraph(EvView *view,
+                                 gint    x,
+                                 gint    y)
+{
+    gint px = x + view->scroll_x;
+    gint py = y + view->scroll_y;
+
+    return px >= 100 && px <= 500 &&
+           py >= 200 && py <= 300;
+}
+
+
+static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
 {
@@ -4035,6 +4048,14 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	    x = event->x;
 	    y = event->y;
 	}
+
+
+    if (ev_view_point_in_test_paragraph(view, x, y)) {
+        g_print("Mouse di paragraf: %d, %d\n", x, y);
+    } else {
+        g_print("Mouse di luar paragraf: %d, %d\n", x, y);
+    }
+
 
 	if (view->scroll_info.autoscrolling) {
 		view->scroll_info.last_y = y;
