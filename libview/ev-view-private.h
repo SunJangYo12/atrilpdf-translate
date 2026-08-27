@@ -212,7 +212,7 @@ struct _EvView {
     GtkWidget *translate_button;
 };
 
-/*JIN*/
+/* JIN */
 typedef struct {
         guint first_index;
         guint last_index;
@@ -220,6 +220,11 @@ typedef struct {
         GdkRectangle rect;
 } EvTextParagraph;
 
+/* JIN */
+typedef struct {
+    gdouble x1;
+    gdouble x2;
+} EvTextColumn;
 
 struct _EvViewClass {
 	GtkLayoutClass parent_class;

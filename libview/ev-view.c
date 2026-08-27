@@ -5470,29 +5470,6 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 		}
 	}
 
-    for (i = 0; i < n_lines; i++) {
-        gchar *line_text;
-
-        line_text = ev_view_get_text_for_glyph_range(
-            view,
-            page,
-            line_first[i],
-            line_last[i]);
-
-        g_print ("LINE %u\n", i);
-        g_print ("  x1=%.2f x2=%.2f y1=%.2f y2=%.2f\n",
-                 line_x1[i],
-                 line_x2[i],
-                 line_tops[i],
-                 line_bottoms[i]);
-
-        g_print ("  TEXT: [%s]\n", line_text);
-
-        g_free (line_text);
-    }
-
-
-
 
 	/*
 	 * ============================================================
@@ -5702,6 +5679,93 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	return TRUE;
 }
 
+// detect colom in page
+static gboolean
+ev_view_get_text_columns_for_page (EvView          *view,
+                                   gint             page,
+                                   EvTextColumn   **columns,
+                                   guint           *n_columns)
+{
+    EvRectangle *areas = NULL;
+    guint n_areas = 0;
+    guint i, j;
+    EvTextColumn *result = NULL;
+    guint result_count = 0;
+
+    *columns = NULL;
+    *n_columns = 0;
+
+    if (!ev_page_cache_get_text_layout (view->page_cache,
+                                        page,
+                                        &areas,
+                                        &n_areas))
+        return FALSE;
+
+    if (!areas || n_areas == 0)
+        return FALSE;
+
+    /*
+     * Ambil semua posisi X glyph.
+     *
+     * Untuk sementara kita hanya mencari rentang horizontal
+     * yang ditempati teks.
+     */
+
+    result = g_new0 (EvTextColumn, n_areas);
+
+    for (i = 0; i < n_areas; i++) {
+        gboolean merged = FALSE;
+
+        for (j = 0; j < result_count; j++) {
+
+            /*
+             * Apakah glyph ini overlap dengan region yang sudah ada?
+             */
+            if (areas[i].x2 >= result[j].x1 &&
+                areas[i].x1 <= result[j].x2) {
+
+                if (areas[i].x1 < result[j].x1)
+                    result[j].x1 = areas[i].x1;
+
+                if (areas[i].x2 > result[j].x2)
+                    result[j].x2 = areas[i].x2;
+
+                merged = TRUE;
+                break;
+            }
+        }
+
+        if (!merged) {
+            result[result_count].x1 = areas[i].x1;
+            result[result_count].x2 = areas[i].x2;
+            result_count++;
+        }
+    }
+
+    /*
+     * Debug.
+     */
+    g_print ("\n");
+    g_print ("============================================\n");
+    g_print ("PAGE %d COLUMNS\n", page);
+    g_print ("============================================\n");
+
+    for (i = 0; i < result_count; i++) {
+        g_print ("COLUMN %u: %.2f -> %.2f  width=%.2f\n",
+                 i,
+                 result[i].x1,
+                 result[i].x2,
+                 result[i].x2 - result[i].x1);
+    }
+
+    g_print ("TOTAL COLUMNS: %u\n", result_count);
+
+    *columns = result;
+    *n_columns = result_count;
+
+    return TRUE;
+}
+
 static void draw_overlay_paragraf(EvView *view, cairo_t *cr, gint x, gint y, gint width, gint height) {
 
     cairo_save (cr);
@@ -5839,6 +5903,22 @@ draw_one_page (EvView       *view,
             cairo_paint (cr);
             cairo_restore (cr);
         }
+
+        EvTextColumn *columns = NULL;
+        guint n_columns = 0;
+
+        if (ev_view_get_text_columns_for_page (view,
+                                               page,
+                                               &columns,
+                                               &n_columns)) {
+
+            /*
+             * sementara hanya debug
+             */
+
+            g_free (columns);
+        }
+
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
