@@ -4402,6 +4402,36 @@ ev_view_get_paragraph_view_rect (EvView       *view,
 	return TRUE;
 }
 
+// untuk memindahkan tombol
+static void
+ev_view_position_translate_button (EvView       *view,
+                                    GdkRectangle *rect)
+{
+	GtkRequisition requisition;
+	gint x;
+	gint y;
+
+	gtk_widget_get_preferred_size (view->translate_button,
+	                               &requisition,
+	                               NULL);
+
+	x = rect->x + rect->width - requisition.width;
+	y = rect->y - requisition.height - 5;
+
+	if (x < 0)
+		x = rect->x;
+
+	if (y < 0)
+		y = rect->y + rect->height + 5;
+
+	gtk_layout_move (GTK_LAYOUT (view),
+	                 view->translate_button,
+	                 x,
+	                 y);
+
+	gtk_widget_show (view->translate_button);
+}
+
 
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
@@ -4456,6 +4486,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 		return TRUE;
 	}
 
+
 {
 	gint page;
 	guint index;
@@ -4480,22 +4511,32 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 			                                 &paragraph_rect,
 			                                 &view_rect);
 
-			g_print ("PARAGRAPH DOC: "
-			         "%d,%d %dx%d\n",
-			         paragraph_rect.x,
-			         paragraph_rect.y,
-			         paragraph_rect.width,
-			         paragraph_rect.height);
+			/*
+			 * Hanya update posisi jika paragraph berubah.
+			 */
+			if (view->translate_page != page ||
+			    view->translate_index != (gint)index) {
 
-			g_print ("PARAGRAPH VIEW: "
-			         "%d,%d %dx%d\n",
-			         view_rect.x,
-			         view_rect.y,
-			         view_rect.width,
-			         view_rect.height);
+                gtk_widget_queue_draw (GTK_WIDGET (view));
+
+				view->translate_page = page;
+				view->translate_index = index;
+
+                view->translate_rect = view_rect;
+
+				/*ev_view_position_translate_button (
+					view,
+					&view_rect);*/
+			}
 		}
+	} else {
+		view->translate_page = -1;
+		view->translate_index = -1;
+
+		//gtk_widget_hide (view->translate_button);
 	}
 }
+
 
 
 	if (view->selection_info.in_drag) {
@@ -5029,7 +5070,7 @@ hide_loading_window (EvView *view)
 
 
 static void
-draw_test_translate_button (EvView       *view,
+zdraw_test_translate_button (EvView       *view,
                             cairo_t      *cr,
                             gint          page)
 {
@@ -5094,6 +5135,64 @@ draw_test_translate_button (EvView       *view,
     cairo_restore (cr);
 }
 
+static void
+draw_test_translate_button (EvView       *view,
+                            cairo_t      *cr,
+                            gint          page,
+                            gint          x,
+                            gint          y)
+{
+    cairo_save (cr);
+
+    cairo_rectangle (cr, x, y, 80, 25);
+
+    cairo_set_source_rgb (cr, 1.0, 0.8, 0.0);
+    cairo_fill_preserve (cr);
+
+    cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+    cairo_stroke (cr);
+
+    cairo_move_to (cr, x + 5, y + 17);
+    cairo_show_text (cr, "Translate");
+
+    cairo_restore (cr);
+}
+static void
+ev_view_position_translate_test (EvView       *view,
+                                 cairo_t      *cr,
+                                 gint          page,
+                                 GdkRectangle *rect)
+{
+    gint x;
+    gint y;
+
+    /*
+     * Posisi tombol:
+     * kanan atas paragraph
+     */
+    x = rect->x + rect->width - 80;
+    y = rect->y - 28;
+
+    /*
+     * Kalau keluar sisi kiri.
+     */
+    if (x < 0)
+        x = rect->x;
+
+    /*
+     * Kalau keluar sisi atas,
+     * taruh di bawah paragraph.
+     */
+    if (y < 0)
+        y = rect->y + rect->height + 5;
+
+    draw_test_translate_button (
+        view,
+        cr,
+        page,
+        x,
+        y);
+}
 
 static void
 draw_one_page (EvView       *view,
@@ -5210,32 +5309,17 @@ draw_one_page (EvView       *view,
             cairo_paint (cr);
             cairo_restore (cr);
         }
-        draw_test_translate_button (view, cr, page);
+        //draw_test_translate_button (view, cr, page);
+        if (1) {//view->translate_page == page &&
+            //view->translate_index == (gint)index) {
 
+            ev_view_position_translate_test (
+                view,
+                cr,
+                page,
+                &view->translate_rect);
+        }
 
-/*
-		selection_width = cairo_image_surface_get_width (selection_surface);
-		selection_height = cairo_image_surface_get_height (selection_surface);
-
-		cairo_save (cr);
-		cairo_translate (cr, overlap.x, overlap.y);
-
-		if (width != selection_width || height != selection_height) {
-			cairo_pattern_set_filter (cairo_get_source (cr),
-						  CAIRO_FILTER_FAST);
-			cairo_scale (cr,
-				     (gdouble)width / selection_width,
-				     (gdouble)height / selection_height);
-		}
-
-		cairo_surface_set_device_offset (selection_surface,
-						 overlap.x - real_page_area.x,
-						 overlap.y - real_page_area.y);
-
-		cairo_set_source_surface (cr, selection_surface, 0, 0);
-
-		cairo_paint (cr);
-		cairo_restore (cr);*/
 	}
 }
 
@@ -5587,6 +5671,19 @@ ev_view_class_init (EvViewClass *class)
 static void
 ev_view_init (EvView *view)
 {
+/*    view->translate_button = gtk_button_new_with_label ("Translate");
+
+    gtk_widget_set_no_show_all(view->translate_button, TRUE);
+    gtk_widget_hide(view->translate_button);
+
+     * Karena EvView merupakan GtkLayout/GtkBin,
+     * tombol ditempatkan sebagai child widget.
+    gtk_container_add (GTK_CONTAINER (view), view->translate_button);
+
+    view->translate_page = -1;
+    view->translate_index = -1;*/
+
+
 	gtk_widget_set_can_focus (GTK_WIDGET (view), TRUE);
 #if GTK_CHECK_VERSION (3, 0, 0)
 	gtk_widget_set_has_window (GTK_WIDGET (view), TRUE);

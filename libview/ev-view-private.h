@@ -205,6 +205,10 @@ struct _EvView {
     gint hovered_test_x;
     gint hovered_test_y;
     gint hovered_test_page;
+    GtkWidget *translate_button;
+    gint translate_page;
+    gint translate_index;
+    GdkRectangle translate_rect;
 };
 
 struct _EvViewClass {
