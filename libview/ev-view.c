@@ -5612,6 +5612,28 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	return TRUE;
 }
 
+static void draw_overlay_paragraf(EvView *view, cairo_t *cr, gint x, gint y, gint width, gint height) {
+
+    cairo_save (cr);
+    cairo_set_source_rgb (cr, 0.5, 0.5, 0.0);
+
+    cairo_rectangle (cr, x, y, width, height);
+
+    cairo_fill (cr);
+
+    cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+
+    cairo_select_font_face (cr,
+                            "Sans",
+                            CAIRO_FONT_SLANT_NORMAL,
+                            CAIRO_FONT_WEIGHT_NORMAL);
+
+    cairo_set_font_size (cr, 14);
+    cairo_move_to (cr, x, y + 15);
+    cairo_show_text (cr, "CUSTOM TEXTzzzzzzzzzzzzzzzzioioioioioioi");
+    cairo_restore (cr);
+}
+
 static void
 draw_one_page (EvView       *view,
 	       gint          page,
@@ -5727,47 +5749,6 @@ draw_one_page (EvView       *view,
             cairo_paint (cr);
             cairo_restore (cr);
         }
-        //draw_test_translate_button (view, cr, page);
-        if (1) {//view->translate_page == page &&
-            //view->translate_index == (gint)index) {
-
-            ev_view_position_translate_test (
-                view,
-                cr,
-                page,
-                &view->translate_rect);
-        }
-/*
-        gint overlay_x;
-        gint overlay_y;
-
-        overlay_x = view->translate_rect.x;// - view->scroll_x;
-        overlay_y = view->translate_rect.y;// - view->scroll_y;
-
-        cairo_save (cr);
-        cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
-
-        cairo_rectangle (cr,
-                         overlay_x,
-                         overlay_y,
-                         view->translate_rect.width,
-                         view->translate_rect.height);
-
-        cairo_fill (cr);
-
-        cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
-
-        cairo_select_font_face (cr,
-                                "Sans",
-                                CAIRO_FONT_SLANT_NORMAL,
-                                CAIRO_FONT_WEIGHT_NORMAL);
-
-        cairo_set_font_size (cr, 14);
-        cairo_move_to (cr,
-                       overlay_x,
-                       overlay_y + 15);
-        cairo_show_text (cr, "CUSTOM TEXTzzzzzzzzzzzzzzzzioioioioioioi");
-        cairo_restore (cr);*/
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
@@ -5791,11 +5772,42 @@ draw_one_page (EvView       *view,
                                  paragraphs[i].first_index,
                                  paragraphs[i].last_index);
 
-                        g_print ("  rect  : %d,%d %dx%d\n",
+                        g_print ("  doc rect  : %d,%d %dx%d\n",
                                  paragraphs[i].rect.x,
                                  paragraphs[i].rect.y,
                                  paragraphs[i].rect.width,
                                  paragraphs[i].rect.height);
+
+
+                        EvRectangle doc_rect;
+                        GdkRectangle view_rect;
+
+                        doc_rect.x1 = paragraphs[i].rect.x;
+                        doc_rect.y1 = paragraphs[i].rect.y;
+                        doc_rect.x2 = paragraphs[i].rect.x +
+                                      paragraphs[i].rect.width;
+                        doc_rect.y2 = paragraphs[i].rect.y +
+                                      paragraphs[i].rect.height;
+
+                        doc_rect_to_view_rect (view,
+                                               page,
+                                               &doc_rect,
+                                               &view_rect);
+
+                        view_rect.x -= view->scroll_x;
+                        view_rect.y -= view->scroll_y;
+
+                        g_print ("  view rect : %d,%d %dx%d\n",
+                                 view_rect.x,
+                                 view_rect.y,
+                                 view_rect.width,
+                                 view_rect.height);
+
+                        draw_overlay_paragraf(view, cr,
+                                 view_rect.x,
+                                 view_rect.y,
+                                 view_rect.width,
+                                 view_rect.height);
 
                         paragraph_text =
                                 ev_view_get_text_for_glyph_range (
@@ -5817,7 +5829,16 @@ draw_one_page (EvView       *view,
 
                 g_free (paragraphs);
         }
+        //draw_test_translate_button (view, cr, page);
+        if (1) {//view->translate_page == page &&
+            //view->translate_index == (gint)index) {
 
+            ev_view_position_translate_test (
+                view,
+                cr,
+                page,
+                &view->translate_rect);
+        }
 	}
 }
 
