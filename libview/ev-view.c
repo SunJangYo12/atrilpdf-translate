@@ -4013,15 +4013,25 @@ ev_view_scroll_drag_release (EvView *view)
 }
 
 static gboolean
-ev_view_point_in_test_paragraph(EvView *view,
-                                 gint    x,
-                                 gint    y)
+ev_view_point_in_test_paragraph(EvView *view, gdouble x, gdouble y)
 {
-    gint px = x + view->scroll_x;
-    gint py = y + view->scroll_y;
+    gint page;
+    gint doc_x;
+    gint doc_y;
 
-    return px >= 100 && px <= 500 &&
-           py >= 200 && py <= 300;
+    if (!get_doc_point_from_location(view, x, y, &page, &doc_x,& doc_y))
+        return FALSE;
+
+    if (page != 0)
+        return FALSE;
+
+    if (doc_x >= 100 &&
+        doc_x <= 500 &&
+        doc_y >= 200 &&
+        doc_y <= 250)
+        return TRUE;
+
+    return FALSE;
 }
 
 
@@ -4051,14 +4061,19 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
 
     if (ev_view_point_in_test_paragraph (view, x, y)) {
-        view->hovered_test_paragraph = TRUE;
+        gint page;
+        gint doc_x;
+        gint doc_y;
 
-        /*
-         * Untuk sementara kita gunakan halaman yang sedang
-         * ditampilkan sebagai current page.
-         */
-        view->hovered_test_page =
-            ev_document_model_get_page (view->model);
+        get_doc_point_from_location (view,
+                                     x,
+                                     y,
+                                     &page,
+                                     &doc_x,
+                                     &doc_y);
+
+        view->hovered_test_paragraph = TRUE;
+        view->hovered_test_page = page;
 
         gtk_widget_queue_draw (widget);
     } else {
@@ -4068,6 +4083,8 @@ ev_view_motion_notify_event (GtkWidget      *widget,
         }
     }
 
+
+    /*
     if (ev_view_point_in_test_paragraph (view, x, y)) {
         view->hovered_test_paragraph = TRUE;
         view->hovered_test_page =
@@ -4082,7 +4099,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
             view->hovered_test_paragraph = FALSE;
             gtk_widget_queue_draw (widget);
         }
-    }
+    }*/
 
 
 
@@ -4623,26 +4640,52 @@ hide_loading_window (EvView *view)
 }
 
 
+
 static void
-draw_test_translate_button (EvView  *view,
-                            cairo_t *cr,
-                            gint     page)
+draw_test_translate_button (EvView       *view,
+                            cairo_t      *cr,
+                            gint          page)
 {
+    EvRectangle paragraph_rect;
+    GdkRectangle rect;
+    gint button_x;
+    gint button_y;
+
     if (!view->hovered_test_paragraph)
         return;
 
     if (view->hovered_test_page != page)
         return;
 
+    paragraph_rect.x1 = 100;
+    paragraph_rect.y1 = 200;
+    paragraph_rect.x2 = 500;
+    paragraph_rect.y2 = 250;
+
+    doc_rect_to_view_rect (view,
+                           page,
+                           &paragraph_rect,
+                           &rect);
+
+    /*
+     * ev_view_get_page_extents() menghasilkan
+     * koordinat content sebelum scroll.
+     */
+    rect.x -= view->scroll_x;
+    rect.y -= view->scroll_y;
+
+    button_x = rect.x + rect.width + 5;
+    button_y = rect.y;
+
     cairo_save (cr);
 
     cairo_set_source_rgb (cr, 0.2, 0.2, 0.2);
 
     cairo_rectangle (cr,
-                 view->hovered_test_x,
-                 view->hovered_test_y,
-                 100,
-                 30);
+                     button_x,
+                     button_y,
+                     100,
+                     30);
 
     cairo_fill (cr);
 
@@ -4655,10 +4698,9 @@ draw_test_translate_button (EvView  *view,
 
     cairo_set_font_size (cr, 13);
 
-
     cairo_move_to (cr,
-               view->hovered_test_x + 10,
-               view->hovered_test_y + 20);
+                   button_x + 10,
+                   button_y + 20);
 
     cairo_show_text (cr, "Translate");
 
