@@ -4180,7 +4180,7 @@ ev_view_get_text_line_rect (EvView       *view,
 }
 
 
-// kita buat fungsi yang mengambil seluruh paragraf berdasarkan jarak vertikal.
+// mengambil seluruh paragraf berdasarkan jarak vertikal. by mouse hover index
 static gboolean
 ev_view_get_text_paragraph_rect (EvView       *view,
                                  gint          page,
@@ -4593,22 +4593,11 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	GdkRectangle paragraph_rect;
 	GdkRectangle view_rect;
 
-	if (ev_view_get_text_rect_at_location (view,
-	                                       x,
-	                                       y,
-	                                       &page,
-	                                       &rect,
-	                                       &index)) {
+	if (ev_view_get_text_rect_at_location(view, x, y, &page, &rect, &index)) {
 
-		if (ev_view_get_text_paragraph_rect (view,
-		                                     page,
-		                                     index,
-		                                     &paragraph_rect)) {
+		if (ev_view_get_text_paragraph_rect(view, page, index, &paragraph_rect)) {
 
-			ev_view_get_paragraph_view_rect (view,
-			                                 page,
-			                                 &paragraph_rect,
-			                                 &view_rect);
+			ev_view_get_paragraph_view_rect(view, page, &paragraph_rect, &view_rect);
 
 			/*
 			 * Hanya update posisi jika paragraph berubah.
@@ -4624,6 +4613,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
                 gchar *paragraph_text;
 
+                /*
                 paragraph_text = ev_view_get_paragraph_text (
                     view,
                     page,
@@ -4637,10 +4627,10 @@ ev_view_motion_notify_event (GtkWidget      *widget,
                     g_print ("============================\n");
 
                     g_free (paragraph_text);
-                }
+                }*/
 
 
-				/*ev_view_position_translate_button (
+				/*BUG ev_view_position_translate_button (
 					view,
 					&view_rect);*/
 			}
@@ -5186,72 +5176,6 @@ hide_loading_window (EvView *view)
 
 
 static void
-zdraw_test_translate_button (EvView       *view,
-                            cairo_t      *cr,
-                            gint          page)
-{
-    EvRectangle paragraph_rect;
-    GdkRectangle rect;
-    gint button_x;
-    gint button_y;
-
-    if (!view->hovered_test_paragraph)
-        return;
-
-    if (view->hovered_test_page != page)
-        return;
-
-    paragraph_rect.x1 = 100;
-    paragraph_rect.y1 = 200;
-    paragraph_rect.x2 = 500;
-    paragraph_rect.y2 = 250;
-
-    doc_rect_to_view_rect (view,
-                           page,
-                           &paragraph_rect,
-                           &rect);
-
-    /*
-     * ev_view_get_page_extents() menghasilkan
-     * koordinat content sebelum scroll.
-     */
-    rect.x -= view->scroll_x;
-    rect.y -= view->scroll_y;
-
-    button_x = rect.x + rect.width + 5;
-    button_y = rect.y;
-
-    cairo_save (cr);
-
-    cairo_set_source_rgb (cr, 0.2, 0.2, 0.2);
-
-    cairo_rectangle (cr,
-                     button_x,
-                     button_y,
-                     100,
-                     30);
-
-    cairo_fill (cr);
-
-    cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
-
-    cairo_select_font_face (cr,
-                            "Sans",
-                            CAIRO_FONT_SLANT_NORMAL,
-                            CAIRO_FONT_WEIGHT_NORMAL);
-
-    cairo_set_font_size (cr, 13);
-
-    cairo_move_to (cr,
-                   button_x + 10,
-                   button_y + 20);
-
-    cairo_show_text (cr, "Translate");
-
-    cairo_restore (cr);
-}
-
-static void
 draw_test_translate_button (EvView       *view,
                             cairo_t      *cr,
                             gint          page,
@@ -5308,6 +5232,384 @@ ev_view_position_translate_test (EvView       *view,
         page,
         x,
         y);
+}
+
+
+// helper get page per paragraf
+static gchar *
+ev_view_get_text_for_glyph_range (EvView *view,
+                                  gint    page,
+                                  guint   first_index,
+                                  guint   last_index)
+{
+	const gchar *text;
+	const gchar *p;
+	GString *result;
+	guint glyph_index = 0;
+
+	text = ev_page_cache_get_text (view->page_cache, page);
+
+	if (!text)
+		return NULL;
+
+	if (first_index > last_index)
+		return NULL;
+
+	result = g_string_new (NULL);
+
+	p = text;
+
+	while (*p) {
+		const gchar *next;
+		gunichar ch;
+
+		next = g_utf8_next_char (p);
+		ch = g_utf8_get_char (p);
+
+		if (glyph_index >= first_index &&
+		    glyph_index <= last_index) {
+
+			g_string_append_len (result,
+			                      p,
+			                      next - p);
+		}
+
+		if (glyph_index > last_index)
+			break;
+
+		glyph_index++;
+		p = next;
+	}
+
+	return g_string_free (result, FALSE);
+}
+
+
+// deteksi semua paragraf by page
+static gboolean
+ev_view_get_text_paragraphs_for_page (EvView            *view,
+                                      gint                page,
+                                      EvTextParagraph  **paragraphs,
+                                      guint              *n_paragraphs)
+{
+	EvRectangle *areas = NULL;
+	guint n_areas = 0;
+
+	gdouble line_tolerance = 3.0;
+	gdouble paragraph_gap_factor = 1.8;
+	gdouble indent_tolerance = 5.0;
+
+	gdouble *line_centers = NULL;
+	gdouble *line_tops = NULL;
+	gdouble *line_bottoms = NULL;
+	gdouble *line_x1 = NULL;
+	gdouble *line_x2 = NULL;
+
+	gint *line_first = NULL;
+	gint *line_last = NULL;
+
+	guint n_lines = 0;
+	guint i;
+
+	EvTextParagraph *result = NULL;
+	guint result_count = 0;
+
+	if (!ev_page_cache_get_text_layout (view->page_cache,
+	                                    page,
+	                                    &areas,
+	                                    &n_areas))
+		return FALSE;
+
+	if (!areas || n_areas == 0)
+		return FALSE;
+
+
+	/*
+	 * Maksimal jumlah line = jumlah glyph.
+	 */
+	line_centers = g_new0 (gdouble, n_areas);
+	line_tops = g_new0 (gdouble, n_areas);
+	line_bottoms = g_new0 (gdouble, n_areas);
+	line_x1 = g_new0 (gdouble, n_areas);
+	line_x2 = g_new0 (gdouble, n_areas);
+
+	line_first = g_new0 (gint, n_areas);
+	line_last = g_new0 (gint, n_areas);
+
+
+	/*
+	 * ============================================================
+	 * PASS 1
+	 *
+	 * Kelompokkan glyph menjadi LINE.
+	 * ============================================================
+	 */
+
+	for (i = 0; i < n_areas; i++) {
+		gdouble center_y;
+		guint j;
+		gboolean added = FALSE;
+
+		center_y = (areas[i].y1 + areas[i].y2) / 2.0;
+
+		for (j = 0; j < n_lines; j++) {
+
+			if (fabs (center_y - line_centers[j]) <= line_tolerance) {
+
+				/*
+				 * Glyph paling kiri.
+				 */
+				if (areas[i].x1 < line_x1[j]) {
+					line_x1[j] = areas[i].x1;
+					line_first[j] = i;
+				}
+
+				/*
+				 * Glyph paling kanan.
+				 */
+				if (areas[i].x2 > line_x2[j]) {
+					line_x2[j] = areas[i].x2;
+					line_last[j] = i;
+				}
+
+				/*
+				 * Batas vertikal line.
+				 */
+				if (areas[i].y1 < line_tops[j])
+					line_tops[j] = areas[i].y1;
+
+				if (areas[i].y2 > line_bottoms[j])
+					line_bottoms[j] = areas[i].y2;
+
+				added = TRUE;
+				break;
+			}
+		}
+
+		if (!added) {
+
+			line_centers[n_lines] = center_y;
+
+			line_tops[n_lines] = areas[i].y1;
+			line_bottoms[n_lines] = areas[i].y2;
+
+			line_x1[n_lines] = areas[i].x1;
+			line_x2[n_lines] = areas[i].x2;
+
+			line_first[n_lines] = i;
+			line_last[n_lines] = i;
+
+			n_lines++;
+		}
+	}
+
+
+	/*
+	 * ============================================================
+	 * PASS 2
+	 *
+	 * Kelompokkan LINE menjadi PARAGRAPH.
+	 * ============================================================
+	 */
+
+	if (n_lines > 0) {
+
+		guint paragraph_first_line = 0;
+
+		for (i = 1; i <= n_lines; i++) {
+
+			gboolean new_paragraph = FALSE;
+
+			if (i == n_lines) {
+				/*
+				 * Sentinel:
+				 * paragraph terakhir harus ditutup.
+				 */
+				new_paragraph = TRUE;
+			} else {
+
+				gdouble previous_bottom;
+				gdouble current_top;
+				gdouble gap;
+
+				gdouble line_height;
+
+				/*
+				 * Jarak vertikal antara dua line.
+				 */
+				previous_bottom = line_bottoms[i - 1];
+				current_top = line_tops[i];
+
+				gap = current_top - previous_bottom;
+
+				line_height =
+					line_bottoms[i - 1] -
+					line_tops[i - 1];
+
+				if (line_height < 1.0)
+					line_height = 10.0;
+
+
+				/*
+				 * ------------------------------------------------
+				 * RULE 1:
+				 *
+				 * Gap besar = paragraph baru.
+				 * ------------------------------------------------
+				 */
+
+				if (gap > line_height * paragraph_gap_factor) {
+					new_paragraph = TRUE;
+				}
+
+
+				/*
+				 * ------------------------------------------------
+				 * RULE 2:
+				 *
+				 * Alinea / first-line indentation.
+				 *
+				 * Misalnya:
+				 *
+				 *     This is a new paragraph...
+				 * text continues here...
+				 *
+				 * X line kedua berbeda dengan X line pertama.
+				 *
+				 * ------------------------------------------------
+				 */
+
+				if (0) {//!new_paragraph) {
+
+					gdouble first_x;
+					gdouble current_x;
+
+					first_x = line_x1[paragraph_first_line];
+					current_x = line_x1[i];
+
+					/*
+					 * Jika line berikutnya menjorok
+					 * lebih ke kanan secara signifikan,
+					 * anggap alinea baru.
+					 *
+					 * Tetapi hanya dibandingkan dengan
+					 * first line paragraph.
+					 */
+					if (current_x >
+					    first_x + indent_tolerance) {
+
+						/*
+						 * Pastikan bukan sekadar
+						 * line biasa yang lebih pendek.
+						 *
+						 * Kita hanya mendeteksi
+						 * indentation ke kanan.
+						 */
+						new_paragraph = TRUE;
+					}
+				}
+			}
+
+
+			if (new_paragraph) {
+
+				guint first_glyph;
+				guint last_glyph;
+
+				gdouble x1 = G_MAXDOUBLE;
+				gdouble y1 = G_MAXDOUBLE;
+				gdouble x2 = -G_MAXDOUBLE;
+				gdouble y2 = -G_MAXDOUBLE;
+
+				guint l;
+
+				first_glyph =
+					line_first[paragraph_first_line];
+
+				last_glyph =
+					line_last[i - 1];
+
+
+				/*
+				 * Cari bounding box seluruh line
+				 * dalam paragraph.
+				 */
+				for (l = paragraph_first_line;
+				     l < i;
+				     l++) {
+
+					if (line_x1[l] < x1)
+						x1 = line_x1[l];
+
+					if (line_tops[l] < y1)
+						y1 = line_tops[l];
+
+					if (line_x2[l] > x2)
+						x2 = line_x2[l];
+
+					if (line_bottoms[l] > y2)
+						y2 = line_bottoms[l];
+				}
+
+
+				/*
+				 * Tambahkan paragraph.
+				 */
+				result = g_realloc (
+					result,
+					sizeof (EvTextParagraph) *
+					(result_count + 1));
+
+				result[result_count].first_index =
+					first_glyph;
+
+				result[result_count].last_index =
+					last_glyph;
+
+				result[result_count].rect.x =
+					(gint) floor (x1);
+
+				result[result_count].rect.y =
+					(gint) floor (y1);
+
+				result[result_count].rect.width =
+					(gint) ceil (x2 - x1);
+
+				result[result_count].rect.height =
+					(gint) ceil (y2 - y1);
+
+				result_count++;
+
+
+				/*
+				 * Paragraph berikutnya dimulai
+				 * dari line sekarang.
+				 */
+				paragraph_first_line = i;
+			}
+		}
+	}
+
+
+	g_free (line_centers);
+	g_free (line_tops);
+	g_free (line_bottoms);
+	g_free (line_x1);
+	g_free (line_x2);
+
+	g_free (line_first);
+	g_free (line_last);
+
+
+	if (result_count == 0) {
+		g_free (result);
+		return FALSE;
+	}
+
+	*paragraphs = result;
+	*n_paragraphs = result_count;
+
+	return TRUE;
 }
 
 static void
@@ -5435,14 +5737,19 @@ draw_one_page (EvView       *view,
                 page,
                 &view->translate_rect);
         }
+/*
+        gint overlay_x;
+        gint overlay_y;
 
+        overlay_x = view->translate_rect.x;// - view->scroll_x;
+        overlay_y = view->translate_rect.y;// - view->scroll_y;
 
         cairo_save (cr);
         cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
 
         cairo_rectangle (cr,
-                         view->translate_rect.x,
-                         view->translate_rect.y,
+                         overlay_x,
+                         overlay_y,
                          view->translate_rect.width,
                          view->translate_rect.height);
 
@@ -5457,10 +5764,60 @@ draw_one_page (EvView       *view,
 
         cairo_set_font_size (cr, 14);
         cairo_move_to (cr,
-                       view->translate_rect.x,
-                       view->translate_rect.y + 15);
-        cairo_show_text (cr, "CUSTOM TEXT");
-        cairo_restore (cr);
+                       overlay_x,
+                       overlay_y + 15);
+        cairo_show_text (cr, "CUSTOM TEXTzzzzzzzzzzzzzzzzioioioioioioi");
+        cairo_restore (cr);*/
+
+        EvTextParagraph *paragraphs = NULL;
+        gchar *paragraph_text;
+        guint n_paragraphs = 0;
+        guint i;
+
+        if (ev_view_get_text_paragraphs_for_page (
+                        view,
+                        page,
+                        &paragraphs,
+                        &n_paragraphs)) {
+
+                g_print ("\n========== PARAGRAPHS ==========\n");
+                g_print ("PAGE: %d\n", page);
+                g_print ("COUNT: %u\n\n", n_paragraphs);
+
+                for (i = 0; i < n_paragraphs; i++) {
+                        g_print ("PARAGRAPH %u\n", i);
+
+                        g_print ("  glyph : %u - %u\n",
+                                 paragraphs[i].first_index,
+                                 paragraphs[i].last_index);
+
+                        g_print ("  rect  : %d,%d %dx%d\n",
+                                 paragraphs[i].rect.x,
+                                 paragraphs[i].rect.y,
+                                 paragraphs[i].rect.width,
+                                 paragraphs[i].rect.height);
+
+                        paragraph_text =
+                                ev_view_get_text_for_glyph_range (
+                                        view,
+                                        page,
+                                        paragraphs[i].first_index,
+                                        paragraphs[i].last_index);
+
+                        if (paragraph_text) {
+                                g_print ("  text  :\n%s\n", paragraph_text);
+                                g_free (paragraph_text);
+                        } else {
+                                g_print ("  text  : <NULL>\n");
+                        }
+
+                }
+
+                g_print ("===============================\n");
+
+                g_free (paragraphs);
+        }
+
 	}
 }
 

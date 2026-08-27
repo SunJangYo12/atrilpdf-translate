@@ -211,6 +211,15 @@ struct _EvView {
     GdkRectangle translate_rect;
 };
 
+/*JIN*/
+typedef struct {
+        guint first_index;
+        guint last_index;
+
+        GdkRectangle rect;
+} EvTextParagraph;
+
+
 struct _EvViewClass {
 	GtkLayoutClass parent_class;
 
