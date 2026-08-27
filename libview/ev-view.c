@@ -5174,6 +5174,73 @@ hide_loading_window (EvView *view)
 }
 
 
+static void
+show_translate_window (EvView *view,
+                       gint x,
+                       gint y)
+{
+    GtkWidget *toplevel;
+    gint root_x;
+    gint root_y;
+
+    if (!view->translate_window) {
+        GtkWidget *button;
+
+        toplevel =
+            gtk_widget_get_toplevel (GTK_WIDGET (view));
+
+        view->translate_window =
+            gtk_window_new (GTK_WINDOW_POPUP);
+
+        gtk_window_set_decorated (
+            GTK_WINDOW (view->translate_window),
+            FALSE);
+
+        gtk_window_set_resizable (
+            GTK_WINDOW (view->translate_window),
+            FALSE);
+
+        button =
+            gtk_button_new_with_label ("Translate");
+
+        view->translate_button = button;
+
+        gtk_container_add (
+            GTK_CONTAINER (view->translate_window),
+            button);
+
+        gtk_widget_show (button);
+    }
+
+    /*
+     * Koordinat x,y sekarang adalah koordinat
+     * relatif terhadap EvView.
+     *
+     * Ubah ke koordinat root window.
+     */
+    gdk_window_get_origin (
+        gtk_widget_get_window (GTK_WIDGET (view)),
+        &root_x,
+        &root_y);
+
+    gtk_window_move (
+        GTK_WINDOW (view->translate_window),
+        root_x + x,
+        root_y + y);
+
+    gtk_widget_show (
+        view->translate_window);
+}
+
+static void
+hide_translate_window (EvView *view)
+{
+    if (view->translate_window)
+        gtk_widget_hide (view->translate_window);
+}
+
+
+
 
 static void
 draw_test_translate_button (EvView       *view,
@@ -5761,12 +5828,12 @@ draw_one_page (EvView       *view,
                         &paragraphs,
                         &n_paragraphs)) {
 
-                g_print ("\n========== PARAGRAPHS ==========\n");
+                /*g_print ("\n========== PARAGRAPHS ==========\n");
                 g_print ("PAGE: %d\n", page);
-                g_print ("COUNT: %u\n\n", n_paragraphs);
+                g_print ("COUNT: %u\n\n", n_paragraphs);*/
 
                 for (i = 0; i < n_paragraphs; i++) {
-                        g_print ("PARAGRAPH %u\n", i);
+                        /*g_print ("PARAGRAPH %u\n", i);
 
                         g_print ("  glyph : %u - %u\n",
                                  paragraphs[i].first_index,
@@ -5776,7 +5843,7 @@ draw_one_page (EvView       *view,
                                  paragraphs[i].rect.x,
                                  paragraphs[i].rect.y,
                                  paragraphs[i].rect.width,
-                                 paragraphs[i].rect.height);
+                                 paragraphs[i].rect.height);*/
 
 
                         EvRectangle doc_rect;
@@ -5797,17 +5864,17 @@ draw_one_page (EvView       *view,
                         view_rect.x -= view->scroll_x;
                         view_rect.y -= view->scroll_y;
 
-                        g_print ("  view rect : %d,%d %dx%d\n",
+                        /*g_print ("  view rect : %d,%d %dx%d\n",
                                  view_rect.x,
                                  view_rect.y,
                                  view_rect.width,
-                                 view_rect.height);
+                                 view_rect.height);*/
 
-                        draw_overlay_paragraf(view, cr,
+                        /*draw_overlay_paragraf(view, cr,
                                  view_rect.x,
                                  view_rect.y,
                                  view_rect.width,
-                                 view_rect.height);
+                                 view_rect.height);*/
 
                         paragraph_text =
                                 ev_view_get_text_for_glyph_range (
@@ -5817,7 +5884,7 @@ draw_one_page (EvView       *view,
                                         paragraphs[i].last_index);
 
                         if (paragraph_text) {
-                                g_print ("  text  :\n%s\n", paragraph_text);
+                                //g_print ("  text  :\n%s\n", paragraph_text);
                                 g_free (paragraph_text);
                         } else {
                                 g_print ("  text  : <NULL>\n");
@@ -5833,11 +5900,16 @@ draw_one_page (EvView       *view,
         if (1) {//view->translate_page == page &&
             //view->translate_index == (gint)index) {
 
-            ev_view_position_translate_test (
+            /*ev_view_position_translate_test (
                 view,
                 cr,
                 page,
-                &view->translate_rect);
+                &view->translate_rect);*/
+            show_translate_window (
+                view,
+                view->translate_rect.x + view->translate_rect.width - 80,
+                view->translate_rect.y - 30);
+
         }
 	}
 }

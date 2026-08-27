@@ -205,10 +205,11 @@ struct _EvView {
     gint hovered_test_x;
     gint hovered_test_y;
     gint hovered_test_page;
-    GtkWidget *translate_button;
     gint translate_page;
     gint translate_index;
     GdkRectangle translate_rect;
+    GtkWidget *translate_window;
+    GtkWidget *translate_button;
 };
 
 /*JIN*/
