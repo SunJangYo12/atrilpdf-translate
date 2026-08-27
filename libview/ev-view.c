@@ -1435,6 +1435,28 @@ find_page_at_location (EvView  *view,
 	*page = -1;
 }
 
+static void
+debug_text_layout (EvView *view, gint page)
+{
+        EvRectangle *areas = NULL;
+        guint n_areas = 0;
+        guint i;
+
+        if (!ev_page_cache_get_text_layout(view->page_cache, page, &areas, &n_areas))
+            return;
+
+        g_print ("PAGE %d: %u text areas\n", page, n_areas);
+
+        for (i = 0; i < n_areas; i++) {
+                g_print ("  [%u] %.2f %.2f %.2f %.2f\n",
+                         i,
+                         areas[i].x1,
+                         areas[i].y1,
+                         areas[i].x2,
+                         areas[i].y2);
+        }
+}
+
 static gboolean
 location_in_text (EvView  *view,
 		  gdouble  x,
@@ -1448,7 +1470,9 @@ location_in_text (EvView  *view,
 
 	if (page == -1)
 		return FALSE;
-	
+
+    debug_text_layout (view, page);
+
 	region = ev_page_cache_get_text_mapping (view->page_cache, page);
 
 	if (region)
@@ -4035,6 +4059,7 @@ ev_view_point_in_test_paragraph(EvView *view, gdouble x, gdouble y)
 }
 
 
+
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
@@ -4082,25 +4107,6 @@ ev_view_motion_notify_event (GtkWidget      *widget,
             gtk_widget_queue_draw (widget);
         }
     }
-
-
-    /*
-    if (ev_view_point_in_test_paragraph (view, x, y)) {
-        view->hovered_test_paragraph = TRUE;
-        view->hovered_test_page =
-            ev_document_model_get_page (view->model);
-
-        view->hovered_test_x = x;
-        view->hovered_test_y = y;
-
-        gtk_widget_queue_draw (widget);
-    } else {
-        if (view->hovered_test_paragraph) {
-            view->hovered_test_paragraph = FALSE;
-            gtk_widget_queue_draw (widget);
-        }
-    }*/
-
 
 
 
@@ -5402,7 +5408,7 @@ setup_caches (EvView *view)
 	view->height_to_page_cache = ev_view_get_height_to_page_cache (view);
 	view->pixbuf_cache = ev_pixbuf_cache_new (GTK_WIDGET (view), view->model, view->pixbuf_cache_size);
 	view->page_cache = ev_page_cache_new (view->document);
-	if (ev_view_is_a11y_enabled (view)) {
+	if (1) { //ev_view_is_a11y_enabled (view)) {
 		EvJobPageDataFlags flags = ev_page_cache_get_flags (view->page_cache);
 
 		ev_page_cache_set_flags (view->page_cache,
