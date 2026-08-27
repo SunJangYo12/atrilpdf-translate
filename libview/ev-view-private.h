@@ -199,6 +199,12 @@ struct _EvView {
 
 	/* Accessibility */
 	gboolean a11y_enabled;
+
+    /* JIN */
+    gboolean hovered_test_paragraph;
+    gint hovered_test_x;
+    gint hovered_test_y;
+    gint hovered_test_page;
 };
 
 struct _EvViewClass {

@@ -4050,11 +4050,43 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	}
 
 
-    if (ev_view_point_in_test_paragraph(view, x, y)) {
-        g_print("Mouse di paragraf: %d, %d\n", x, y);
+    if (ev_view_point_in_test_paragraph (view, x, y)) {
+        view->hovered_test_paragraph = TRUE;
+
+        /*
+         * Untuk sementara kita gunakan halaman yang sedang
+         * ditampilkan sebagai current page.
+         */
+        view->hovered_test_page =
+            ev_document_model_get_page (view->model);
+
+        gtk_widget_queue_draw (widget);
     } else {
-        g_print("Mouse di luar paragraf: %d, %d\n", x, y);
+        if (view->hovered_test_paragraph) {
+            view->hovered_test_paragraph = FALSE;
+            gtk_widget_queue_draw (widget);
+        }
     }
+
+    if (ev_view_point_in_test_paragraph (view, x, y)) {
+        view->hovered_test_paragraph = TRUE;
+        view->hovered_test_page =
+            ev_document_model_get_page (view->model);
+
+        view->hovered_test_x = x;
+        view->hovered_test_y = y;
+
+        gtk_widget_queue_draw (widget);
+    } else {
+        if (view->hovered_test_paragraph) {
+            view->hovered_test_paragraph = FALSE;
+            gtk_widget_queue_draw (widget);
+        }
+    }
+
+
+
+
 
 
 	if (view->scroll_info.autoscrolling) {
@@ -4590,6 +4622,50 @@ hide_loading_window (EvView *view)
 	}
 }
 
+
+static void
+draw_test_translate_button (EvView  *view,
+                            cairo_t *cr,
+                            gint     page)
+{
+    if (!view->hovered_test_paragraph)
+        return;
+
+    if (view->hovered_test_page != page)
+        return;
+
+    cairo_save (cr);
+
+    cairo_set_source_rgb (cr, 0.2, 0.2, 0.2);
+
+    cairo_rectangle (cr,
+                 view->hovered_test_x,
+                 view->hovered_test_y,
+                 100,
+                 30);
+
+    cairo_fill (cr);
+
+    cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+
+    cairo_select_font_face (cr,
+                            "Sans",
+                            CAIRO_FONT_SLANT_NORMAL,
+                            CAIRO_FONT_WEIGHT_NORMAL);
+
+    cairo_set_font_size (cr, 13);
+
+
+    cairo_move_to (cr,
+               view->hovered_test_x + 10,
+               view->hovered_test_y + 20);
+
+    cairo_show_text (cr, "Translate");
+
+    cairo_restore (cr);
+}
+
+
 static void
 draw_one_page (EvView       *view,
 	       gint          page,
@@ -4680,10 +4756,35 @@ draw_one_page (EvView       *view,
 								       NULL);
 		}
 
-		if (!selection_surface) {
-			return;
-		}
 
+        if (selection_surface) {
+            selection_width = cairo_image_surface_get_width (selection_surface);
+            selection_height = cairo_image_surface_get_height (selection_surface);
+
+            cairo_save (cr);
+            cairo_translate (cr, overlap.x, overlap.y);
+
+            if (width != selection_width || height != selection_height) {
+                cairo_pattern_set_filter (cairo_get_source (cr),
+                                          CAIRO_FILTER_FAST);
+                cairo_scale (cr,
+                             (gdouble)width / selection_width,
+                             (gdouble)height / selection_height);
+            }
+
+            cairo_surface_set_device_offset (
+                selection_surface,
+                overlap.x - real_page_area.x,
+                overlap.y - real_page_area.y);
+
+            cairo_set_source_surface (cr, selection_surface, 0, 0);
+            cairo_paint (cr);
+            cairo_restore (cr);
+        }
+        draw_test_translate_button (view, cr, page);
+
+
+/*
 		selection_width = cairo_image_surface_get_width (selection_surface);
 		selection_height = cairo_image_surface_get_height (selection_surface);
 
@@ -4703,8 +4804,9 @@ draw_one_page (EvView       *view,
 						 overlap.y - real_page_area.y);
 
 		cairo_set_source_surface (cr, selection_surface, 0, 0);
+
 		cairo_paint (cr);
-		cairo_restore (cr);
+		cairo_restore (cr);*/
 	}
 }
 
