@@ -5470,6 +5470,29 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 		}
 	}
 
+    for (i = 0; i < n_lines; i++) {
+        gchar *line_text;
+
+        line_text = ev_view_get_text_for_glyph_range(
+            view,
+            page,
+            line_first[i],
+            line_last[i]);
+
+        g_print ("LINE %u\n", i);
+        g_print ("  x1=%.2f x2=%.2f y1=%.2f y2=%.2f\n",
+                 line_x1[i],
+                 line_x2[i],
+                 line_tops[i],
+                 line_bottoms[i]);
+
+        g_print ("  TEXT: [%s]\n", line_text);
+
+        g_free (line_text);
+    }
+
+
+
 
 	/*
 	 * ============================================================
@@ -5830,8 +5853,8 @@ draw_one_page (EvView       *view,
 
                 /*g_print ("\n========== PARAGRAPHS ==========\n");
                 g_print ("PAGE: %d\n", page);
-                g_print ("COUNT: %u\n\n", n_paragraphs);*/
-
+                g_print ("COUNT: %u\n\n", n_paragraphs);
+                */
                 for (i = 0; i < n_paragraphs; i++) {
                         /*g_print ("PARAGRAPH %u\n", i);
 
@@ -5892,7 +5915,7 @@ draw_one_page (EvView       *view,
 
                 }
 
-                g_print ("===============================\n");
+                //g_print ("===============================\n");
 
                 g_free (paragraphs);
         }
