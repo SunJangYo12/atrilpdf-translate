@@ -4640,19 +4640,6 @@ ev_view_motion_notify_event (GtkWidget      *widget,
                 }
 
 
-                /*const gchar *text;
-
-                text = ev_page_cache_get_text (view->page_cache, page);
-
-                if (text) {
-                    g_print ("========== HOVER ==========\n");
-                    g_print ("PAGE  : %d\n", page);
-                    g_print ("INDEX : %d\n", (gint)index);
-                    g_print ("%s\n", text);
-                    g_print ("============================\n");
-                }*/
-
-
 				/*ev_view_position_translate_button (
 					view,
 					&view_rect);*/
@@ -5449,6 +5436,31 @@ draw_one_page (EvView       *view,
                 &view->translate_rect);
         }
 
+
+        cairo_save (cr);
+        cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+
+        cairo_rectangle (cr,
+                         view->translate_rect.x,
+                         view->translate_rect.y,
+                         view->translate_rect.width,
+                         view->translate_rect.height);
+
+        cairo_fill (cr);
+
+        cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+
+        cairo_select_font_face (cr,
+                                "Sans",
+                                CAIRO_FONT_SLANT_NORMAL,
+                                CAIRO_FONT_WEIGHT_NORMAL);
+
+        cairo_set_font_size (cr, 14);
+        cairo_move_to (cr,
+                       view->translate_rect.x,
+                       view->translate_rect.y + 15);
+        cairo_show_text (cr, "CUSTOM TEXT");
+        cairo_restore (cr);
 	}
 }
 
