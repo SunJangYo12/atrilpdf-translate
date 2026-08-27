@@ -4433,6 +4433,105 @@ ev_view_position_translate_button (EvView       *view,
 }
 
 
+static gchar *
+ev_view_get_paragraph_text (EvView *view,
+                            gint page,
+                            guint hover_index)
+{
+    EvRectangle *areas = NULL;
+    guint n_areas = 0;
+    const gchar *text;
+    guint i;
+    guint start;
+    guint end;
+    gdouble base_y;
+    gdouble line_height;
+    GString *paragraph;
+
+    if (!ev_page_cache_get_text_layout (view->page_cache,
+                                        page,
+                                        &areas,
+                                        &n_areas))
+        return NULL;
+
+    if (!areas || n_areas == 0 || hover_index >= n_areas)
+        return NULL;
+
+    text = ev_page_cache_get_text (view->page_cache, page);
+
+    if (!text)
+        return NULL;
+
+    /*
+     * Untuk tahap awal kita anggap satu area = satu karakter.
+     */
+    start = hover_index;
+    end = hover_index;
+
+    base_y = areas[hover_index].y1;
+    line_height = areas[hover_index].y2 - areas[hover_index].y1;
+
+    /*
+     * Cari awal paragraf:
+     *
+     * Bergerak ke atas selama jarak antar-line
+     * masih cukup dekat.
+     */
+    for (i = hover_index; i > 0; i--) {
+        gdouble y1;
+        gdouble y2;
+        gdouble gap;
+
+        y1 = areas[i - 1].y1;
+        y2 = areas[i - 1].y2;
+
+        gap = base_y - y2;
+
+        /*
+         * Jika gap besar, kemungkinan sudah masuk
+         * paragraf sebelumnya.
+         */
+        if (gap > line_height * 1.5)
+            break;
+
+        /*
+         * Masih bagian dari paragraf.
+         */
+        start = i - 1;
+        base_y = y1;
+    }
+
+    /*
+     * Cari akhir paragraf.
+     */
+    base_y = areas[hover_index].y1;
+
+    for (i = hover_index; i + 1 < n_areas; i++) {
+        gdouble next_y;
+        gdouble gap;
+
+        next_y = areas[i + 1].y1;
+
+        gap = next_y - base_y;
+
+        if (gap > line_height * 1.5)
+            break;
+
+        end = i + 1;
+        base_y = next_y;
+    }
+
+    /*
+     * Ambil teks berdasarkan index.
+     */
+    paragraph = g_string_new ("");
+
+    for (i = start; i <= end && text[i] != '\0'; i++)
+        g_string_append_c (paragraph, text[i]);
+
+    return g_string_free (paragraph, FALSE);
+}
+
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
@@ -4521,8 +4620,38 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
 				view->translate_page = page;
 				view->translate_index = index;
-
                 view->translate_rect = view_rect;
+
+                gchar *paragraph_text;
+
+                paragraph_text = ev_view_get_paragraph_text (
+                    view,
+                    page,
+                    (guint)index);
+
+                if (paragraph_text) {
+                    g_print ("========== HOVER ==========\n");
+                    g_print ("PAGE  : %d\n", page);
+                    g_print ("INDEX : %d\n", (gint)index);
+                    g_print ("PARAGRAPH:\n%s\n", paragraph_text);
+                    g_print ("============================\n");
+
+                    g_free (paragraph_text);
+                }
+
+
+                /*const gchar *text;
+
+                text = ev_page_cache_get_text (view->page_cache, page);
+
+                if (text) {
+                    g_print ("========== HOVER ==========\n");
+                    g_print ("PAGE  : %d\n", page);
+                    g_print ("INDEX : %d\n", (gint)index);
+                    g_print ("%s\n", text);
+                    g_print ("============================\n");
+                }*/
+
 
 				/*ev_view_position_translate_button (
 					view,
