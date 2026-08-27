@@ -4180,6 +4180,199 @@ ev_view_get_text_line_rect (EvView       *view,
 }
 
 
+// kita buat fungsi yang mengambil seluruh paragraf berdasarkan jarak vertikal.
+static gboolean
+ev_view_get_text_paragraph_rect (EvView       *view,
+                                 gint          page,
+                                 guint         hover_index,
+                                 GdkRectangle *paragraph_rect)
+{
+	EvRectangle *areas = NULL;
+	guint n_areas = 0;
+	gdouble hover_y;
+	gdouble line_height;
+	gdouble line_tolerance = 3.0;
+	gdouble paragraph_gap;
+	gdouble *line_centers = NULL;
+	gdouble *line_tops = NULL;
+	gdouble *line_bottoms = NULL;
+	gint *line_first = NULL;
+	gint *line_last = NULL;
+	guint n_lines = 0;
+	guint i;
+	gboolean found = FALSE;
+
+	if (!ev_page_cache_get_text_layout (view->page_cache,
+	                                    page,
+	                                    &areas,
+	                                    &n_areas))
+		return FALSE;
+
+	if (!areas || n_areas == 0 || hover_index >= n_areas)
+		return FALSE;
+
+	hover_y = (areas[hover_index].y1 +
+	           areas[hover_index].y2) / 2.0;
+
+	/*
+	 * First pass:
+	 * group glyphs into lines.
+	 */
+	line_centers = g_new0 (gdouble, n_areas);
+	line_tops = g_new0 (gdouble, n_areas);
+	line_bottoms = g_new0 (gdouble, n_areas);
+	line_first = g_new0 (gint, n_areas);
+	line_last = g_new0 (gint, n_areas);
+
+	for (i = 0; i < n_areas; i++) {
+		gdouble center_y;
+		guint j;
+		gboolean added = FALSE;
+
+		center_y = (areas[i].y1 + areas[i].y2) / 2.0;
+
+		for (j = 0; j < n_lines; j++) {
+			if (fabs (center_y - line_centers[j]) <= line_tolerance) {
+				if (areas[i].x1 < areas[line_first[j]].x1)
+					line_first[j] = i;
+
+				if (areas[i].x2 > areas[line_last[j]].x2)
+					line_last[j] = i;
+
+				if (areas[i].y1 < line_tops[j])
+					line_tops[j] = areas[i].y1;
+
+				if (areas[i].y2 > line_bottoms[j])
+					line_bottoms[j] = areas[i].y2;
+
+				added = TRUE;
+				break;
+			}
+		}
+
+		if (!added) {
+			line_centers[n_lines] = center_y;
+			line_tops[n_lines] = areas[i].y1;
+			line_bottoms[n_lines] = areas[i].y2;
+			line_first[n_lines] = i;
+			line_last[n_lines] = i;
+			n_lines++;
+		}
+	}
+
+	/*
+	 * Find the line containing the hovered glyph.
+	 */
+	gint hover_line = -1;
+
+	for (i = 0; i < n_lines; i++) {
+		if (hover_y >= line_tops[i] - line_tolerance &&
+		    hover_y <= line_bottoms[i] + line_tolerance) {
+			hover_line = i;
+			break;
+		}
+	}
+
+	if (hover_line < 0)
+		goto cleanup;
+
+	/*
+	 * Estimate normal line height.
+	 */
+	line_height =
+		line_bottoms[hover_line] -
+		line_tops[hover_line];
+
+	if (line_height < 1.0)
+		line_height = 10.0;
+
+	/*
+	 * Gap larger than roughly 1.8 line heights means
+	 * a new paragraph.
+	 */
+	paragraph_gap = line_height * 0.8;
+
+	/*
+	 * Expand upward and downward from hovered line.
+	 */
+	gint first_line = hover_line;
+	gint last_line = hover_line;
+
+	while (first_line > 0) {
+		gdouble gap;
+
+		gap = line_tops[first_line] -
+		      line_bottoms[first_line - 1];
+
+		if (gap > paragraph_gap)
+			break;
+
+		first_line--;
+	}
+
+	while (last_line + 1 < (gint)n_lines) {
+		gdouble gap;
+
+		gap = line_tops[last_line + 1] -
+		      line_bottoms[last_line];
+
+		if (gap > paragraph_gap)
+			break;
+
+		last_line++;
+	}
+
+	/*
+	 * Build paragraph bounding box.
+	 */
+	{
+		gdouble x1 = G_MAXDOUBLE;
+		gdouble y1 = G_MAXDOUBLE;
+		gdouble x2 = -G_MAXDOUBLE;
+		gdouble y2 = -G_MAXDOUBLE;
+
+		for (i = first_line; i <= (guint)last_line; i++) {
+			gint j;
+
+			for (j = line_first[i];
+			     j <= line_last[i];
+			     j++) {
+
+				if (areas[j].x1 < x1)
+					x1 = areas[j].x1;
+
+				if (areas[j].y1 < y1)
+					y1 = areas[j].y1;
+
+				if (areas[j].x2 > x2)
+					x2 = areas[j].x2;
+
+				if (areas[j].y2 > y2)
+					y2 = areas[j].y2;
+			}
+		}
+
+		paragraph_rect->x = (gint)floor (x1);
+		paragraph_rect->y = (gint)floor (y1);
+		paragraph_rect->width =
+			(gint)ceil (x2 - x1);
+		paragraph_rect->height =
+			(gint)ceil (y2 - y1);
+
+		found = TRUE;
+	}
+
+cleanup:
+	g_free (line_centers);
+	g_free (line_tops);
+	g_free (line_bottoms);
+	g_free (line_first);
+	g_free (line_last);
+
+	return found;
+}
+
+
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
@@ -4233,12 +4426,11 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 		return TRUE;
 	}
 
-
 {
 	gint page;
 	guint index;
 	EvRectangle *rect;
-	GdkRectangle line_rect;
+	GdkRectangle paragraph_rect;
 
 	if (ev_view_get_text_rect_at_location (view,
 	                                       x,
@@ -4247,23 +4439,22 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	                                       &rect,
 	                                       &index)) {
 
-		if (ev_view_get_text_line_rect (view,
-		                                page,
-		                                index,
-		                                &line_rect)) {
+		if (ev_view_get_text_paragraph_rect (view,
+		                                     page,
+		                                     index,
+		                                     &paragraph_rect)) {
 
-			g_print ("LINE page=%d index=%u: "
+			g_print ("PARAGRAPH page=%d index=%u: "
 			         "%d,%d %dx%d\n",
 			         page,
 			         index,
-			         line_rect.x,
-			         line_rect.y,
-			         line_rect.width,
-			         line_rect.height);
+			         paragraph_rect.x,
+			         paragraph_rect.y,
+			         paragraph_rect.width,
+			         paragraph_rect.height);
 		}
 	}
 }
-
 
 
 	if (view->selection_info.in_drag) {
