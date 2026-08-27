@@ -4290,7 +4290,7 @@ ev_view_get_text_paragraph_rect (EvView       *view,
 	 * Gap larger than roughly 1.8 line heights means
 	 * a new paragraph.
 	 */
-	paragraph_gap = line_height * 0.8;
+	paragraph_gap = line_height * 0.8; //1.8
 
 	/*
 	 * Expand upward and downward from hovered line.
@@ -4372,6 +4372,36 @@ cleanup:
 	return found;
 }
 
+// paragraf to view
+static gboolean
+ev_view_get_paragraph_view_rect (EvView       *view,
+                                 gint          page,
+                                 GdkRectangle *paragraph_rect,
+                                 GdkRectangle *view_rect)
+{
+	EvRectangle doc_rect;
+
+	doc_rect.x1 = paragraph_rect->x;
+	doc_rect.y1 = paragraph_rect->y;
+	doc_rect.x2 = paragraph_rect->x + paragraph_rect->width;
+	doc_rect.y2 = paragraph_rect->y + paragraph_rect->height;
+
+	doc_rect_to_view_rect (view,
+	                       page,
+	                       &doc_rect,
+	                       view_rect);
+
+	/*
+	 * doc_rect_to_view_rect() returns coordinates
+	 * relative to the document view. Convert them
+	 * to actual widget coordinates by applying scroll.
+	 */
+	view_rect->x -= view->scroll_x;
+	view_rect->y -= view->scroll_y;
+
+	return TRUE;
+}
+
 
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
@@ -4431,6 +4461,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	guint index;
 	EvRectangle *rect;
 	GdkRectangle paragraph_rect;
+	GdkRectangle view_rect;
 
 	if (ev_view_get_text_rect_at_location (view,
 	                                       x,
@@ -4444,14 +4475,24 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 		                                     index,
 		                                     &paragraph_rect)) {
 
-			g_print ("PARAGRAPH page=%d index=%u: "
+			ev_view_get_paragraph_view_rect (view,
+			                                 page,
+			                                 &paragraph_rect,
+			                                 &view_rect);
+
+			g_print ("PARAGRAPH DOC: "
 			         "%d,%d %dx%d\n",
-			         page,
-			         index,
 			         paragraph_rect.x,
 			         paragraph_rect.y,
 			         paragraph_rect.width,
 			         paragraph_rect.height);
+
+			g_print ("PARAGRAPH VIEW: "
+			         "%d,%d %dx%d\n",
+			         view_rect.x,
+			         view_rect.y,
+			         view_rect.width,
+			         view_rect.height);
 		}
 	}
 }
