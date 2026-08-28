@@ -212,14 +212,16 @@ struct _EvView {
     GdkRectangle translate_rect;
     GtkWidget *translate_window;
     GtkWidget *translate_button;
-    gdouble paragraph_scroll;
     gdouble paragraph_content_height;
+    gint     paragraph_scroll_page;
+    guint    paragraph_scroll_index;
+    gdouble  paragraph_scroll;
     gint paragraph_box_x;
     gint paragraph_box_y;
     gint paragraph_box_width;
     gint paragraph_box_height;
     gboolean paragraph_overlay_active;
-
+    GList *paragraph_overlays;
 };
 
 /* JIN */
@@ -229,6 +231,13 @@ typedef struct {
 
         GdkRectangle rect;
 } EvTextParagraph;
+typedef struct {
+        gint page;
+        guint index;
+
+        GdkRectangle rect;
+} EvParagraphOverlay;
+
 
 /* JIN */
 typedef struct {

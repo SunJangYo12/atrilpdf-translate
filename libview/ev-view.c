@@ -3414,6 +3414,36 @@ ev_view_scroll_event (GtkWidget      *widget,
          view->paragraph_box_width,
          view->paragraph_box_height,
          view->paragraph_overlay_active);
+    GList *l;
+
+    for (l = view->paragraph_overlays;
+         l != NULL;
+         l = l->next) {
+
+        EvParagraphOverlay *overlay;
+
+        overlay = l->data;
+
+        if (event->x >= overlay->rect.x &&
+            event->x <=
+                overlay->rect.x +
+                overlay->rect.width &&
+
+            event->y >= overlay->rect.y &&
+            event->y <=
+                overlay->rect.y +
+                overlay->rect.height) {
+
+            g_print (
+                "MOUSE OVER: page=%d index=%u\n",
+                overlay->page,
+                overlay->index);
+
+            break;
+        }
+    }
+
+
 
 
     /*
@@ -4772,7 +4802,7 @@ on_translate_button_clicked (GtkButton *button,
              view->translate_page,
              view->translate_index);
 
-
+/*
     gchar *paragraph_text;
 
     paragraph_text =
@@ -4780,7 +4810,7 @@ on_translate_button_clicked (GtkButton *button,
             view,
             view->translate_page,
             (guint)view->translate_index);
-
+*/
 /*
     paragraph_text =
         ev_view_get_paragraph_text (
@@ -6538,8 +6568,9 @@ draw_overlay_paragraf (EvView  *view,
                        gint     x,
                        gint     y,
                        gint     width,
-                       gint     height)
+                       gint     height, gint page, guint index)
 {
+
     view->paragraph_box_x = x;
     view->paragraph_box_y = y;
     view->paragraph_box_width = width;
@@ -6958,6 +6989,15 @@ draw_one_page (EvView       *view,
                         &paragraphs,
                         &n_paragraphs)) {
 
+                if (view->paragraph_overlays) {
+                    g_list_free_full (
+                        view->paragraph_overlays,
+                        g_free);
+
+                    view->paragraph_overlays = NULL;
+                }
+
+
                 /*g_print ("\n========== PARAGRAPHS ==========\n");
                 g_print ("PAGE: %d\n", page);
                 g_print ("COUNT: %u\n\n", n_paragraphs);
@@ -6994,14 +7034,30 @@ draw_one_page (EvView       *view,
                         view_rect.x -= view->scroll_x;
                         view_rect.y -= view->scroll_y;
 
-                        view->translate_page = page;
-                        view->translate_index = 4;
-
                         /*g_print ("  view rect : %d,%d %dx%d\n",
                                  view_rect.x,
                                  view_rect.y,
                                  view_rect.width,
                                  view_rect.height);*/
+
+
+                        EvParagraphOverlay *overlay;
+
+                        overlay = g_new0 (
+                            EvParagraphOverlay,
+                            1);
+
+                        overlay->page = page;
+                        overlay->index = i;
+
+                        overlay->rect = view_rect;
+
+                        view->paragraph_overlays =
+                            g_list_append (
+                                view->paragraph_overlays,
+                                overlay);
+
+
 
                         paragraph_text =
                                 ev_view_get_text_for_glyph_range (
@@ -7014,7 +7070,7 @@ draw_one_page (EvView       *view,
                                  view_rect.x,
                                  view_rect.y,
                                  view_rect.width,
-                                 view_rect.height);
+                                 view_rect.height, page, i);
 /*
                         if (paragraph_text) {
                                 g_print ("  text  :\n%s\n", paragraph_text);
@@ -7038,6 +7094,7 @@ draw_one_page (EvView       *view,
                 cr,
                 page,
                 &view->translate_rect);*/
+
             show_translate_window (
                 view,
                 view->translate_rect.x + view->translate_rect.width - 80,
