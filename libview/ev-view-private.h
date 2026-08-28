@@ -208,19 +208,12 @@ struct _EvView {
     gint hovered_test_page;
     gint translate_page;
     gint translate_index;
-    guint oke;
     GdkRectangle translate_rect;
     GtkWidget *translate_window;
     GtkWidget *translate_button;
-    gdouble paragraph_content_height;
     gint     paragraph_scroll_page;
     guint    paragraph_scroll_index;
     gdouble  paragraph_scroll;
-    gint paragraph_box_x;
-    gint paragraph_box_y;
-    gint paragraph_box_width;
-    gint paragraph_box_height;
-    gboolean paragraph_overlay_active;
     GList *paragraph_overlays;
 };
 
@@ -239,12 +232,6 @@ typedef struct {
 } EvParagraphOverlay;
 
 
-/* JIN */
-typedef struct {
-    gdouble x1;
-    gdouble x2;
-    GdkRectangle rect;
-} EvTextColumn;
 
 struct _EvViewClass {
 	GtkLayoutClass parent_class;
