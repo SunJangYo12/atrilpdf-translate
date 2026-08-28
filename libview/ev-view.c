@@ -5688,12 +5688,20 @@ ev_view_get_text_columns_for_page (EvView          *view,
 {
     EvRectangle *areas = NULL;
     guint n_areas = 0;
-    guint i, j;
+
     EvTextColumn *result = NULL;
     guint result_count = 0;
 
-    *columns = NULL;
-    *n_columns = 0;
+    guint i;
+    guint j;
+
+    /*
+     * Toleransi horizontal.
+     *
+     * Glyph yang posisi X-nya berdekatan
+     * akan dianggap berada pada region/kolom yang sama.
+     */
+    gdouble x_tolerance = 5.0;
 
     if (!ev_page_cache_get_text_layout (view->page_cache,
                                         page,
@@ -5704,67 +5712,198 @@ ev_view_get_text_columns_for_page (EvView          *view,
     if (!areas || n_areas == 0)
         return FALSE;
 
-    /*
-     * Ambil semua posisi X glyph.
-     *
-     * Untuk sementara kita hanya mencari rentang horizontal
-     * yang ditempati teks.
-     */
 
+    /*
+     * Maksimal jumlah region = jumlah glyph.
+     */
     result = g_new0 (EvTextColumn, n_areas);
 
-    for (i = 0; i < n_areas; i++) {
-        gboolean merged = FALSE;
 
+    /*
+     * ============================================================
+     * PASS 1
+     *
+     * Kelompokkan glyph berdasarkan posisi X.
+     * ============================================================
+     */
+
+    for (i = 0; i < n_areas; i++) {
+
+        gdouble glyph_x1;
+        gdouble glyph_x2;
+
+        gboolean added = FALSE;
+
+        glyph_x1 = areas[i].x1;
+        glyph_x2 = areas[i].x2;
+
+
+        /*
+         * Cek apakah glyph ini masuk
+         * ke region yang sudah ada.
+         */
         for (j = 0; j < result_count; j++) {
 
+            gdouble column_x1;
+            gdouble column_x2;
+
+            column_x1 = result[j].rect.x;
+
+            column_x2 =
+                result[j].rect.x +
+                result[j].rect.width;
+
+
             /*
-             * Apakah glyph ini overlap dengan region yang sudah ada?
+             * Jika glyph overlap / dekat dengan
+             * region yang sudah ada, gabungkan.
              */
-            if (areas[i].x2 >= result[j].x1 &&
-                areas[i].x1 <= result[j].x2) {
+            if (glyph_x2 >= column_x1 - x_tolerance &&
+                glyph_x1 <= column_x2 + x_tolerance) {
 
-                if (areas[i].x1 < result[j].x1)
-                    result[j].x1 = areas[i].x1;
+                gint new_x1;
+                gint new_x2;
 
-                if (areas[i].x2 > result[j].x2)
-                    result[j].x2 = areas[i].x2;
+                new_x1 = MIN ((gint) floor (glyph_x1),
+                              column_x1);
 
-                merged = TRUE;
+                new_x2 = MAX ((gint) ceil (glyph_x2),
+                              column_x2);
+
+
+                result[j].rect.x = new_x1;
+
+                result[j].rect.width =
+                    new_x2 - new_x1;
+
+
+                added = TRUE;
+
                 break;
             }
         }
 
-        if (!merged) {
-            result[result_count].x1 = areas[i].x1;
-            result[result_count].x2 = areas[i].x2;
+
+        /*
+         * Kalau tidak masuk region manapun,
+         * buat region baru.
+         */
+        if (!added) {
+
+            result[result_count].rect.x =
+                (gint) floor (glyph_x1);
+
+            result[result_count].rect.y =
+                (gint) floor (areas[i].y1);
+
+            result[result_count].rect.width =
+                (gint) ceil (glyph_x2 - glyph_x1);
+
+            result[result_count].rect.height =
+                (gint) ceil (areas[i].y2 - areas[i].y1);
+
             result_count++;
         }
     }
 
+
     /*
-     * Debug.
+     * ============================================================
+     * PASS 2
+     *
+     * Sekarang hitung Y dan tinggi seluruh region.
+     *
+     * Karena region dibuat berdasarkan X, kita scan kembali
+     * semua glyph untuk mencari batas Y masing-masing region.
+     * ============================================================
      */
+
+    for (i = 0; i < result_count; i++) {
+
+        gdouble y1 = G_MAXDOUBLE;
+        gdouble y2 = -G_MAXDOUBLE;
+
+        gdouble column_x1;
+        gdouble column_x2;
+
+
+        column_x1 = result[i].rect.x;
+
+        column_x2 =
+            result[i].rect.x +
+            result[i].rect.width;
+
+
+        for (j = 0; j < n_areas; j++) {
+
+            gdouble glyph_center_x;
+
+            glyph_center_x =
+                (areas[j].x1 + areas[j].x2) / 2.0;
+
+
+            /*
+             * Glyph berada di region X ini.
+             */
+            if (glyph_center_x >= column_x1 - x_tolerance &&
+                glyph_center_x <= column_x2 + x_tolerance) {
+
+                if (areas[j].y1 < y1)
+                    y1 = areas[j].y1;
+
+                if (areas[j].y2 > y2)
+                    y2 = areas[j].y2;
+            }
+        }
+
+
+        if (y1 != G_MAXDOUBLE &&
+            y2 != -G_MAXDOUBLE) {
+
+            result[i].rect.y =
+                (gint) floor (y1);
+
+            result[i].rect.height =
+                (gint) ceil (y2 - y1);
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * DEBUG
+     * ============================================================
+     */
+
     g_print ("\n");
-    g_print ("============================================\n");
     g_print ("PAGE %d COLUMNS\n", page);
     g_print ("============================================\n");
 
     for (i = 0; i < result_count; i++) {
-        g_print ("COLUMN %u: %.2f -> %.2f  width=%.2f\n",
+
+        g_print ("COLUMN %u: %d,%d -> %d,%d  "
+                 "width=%d height=%d\n",
                  i,
-                 result[i].x1,
-                 result[i].x2,
-                 result[i].x2 - result[i].x1);
+                 result[i].rect.x,
+                 result[i].rect.y,
+                 result[i].rect.x + result[i].rect.width,
+                 result[i].rect.y + result[i].rect.height,
+                 result[i].rect.width,
+                 result[i].rect.height);
     }
 
     g_print ("TOTAL COLUMNS: %u\n", result_count);
 
+
+    /*
+     * Kembalikan hasil.
+     */
     *columns = result;
     *n_columns = result_count;
 
-    return TRUE;
+    return result_count > 0;
 }
+
 
 static void draw_overlay_paragraf(EvView *view, cairo_t *cr, gint x, gint y, gint width, gint height) {
 
@@ -5906,15 +6045,39 @@ draw_one_page (EvView       *view,
 
         EvTextColumn *columns = NULL;
         guint n_columns = 0;
+        guint i;
 
         if (ev_view_get_text_columns_for_page (view,
                                                page,
                                                &columns,
                                                &n_columns)) {
+            for (i = 0; i < n_columns; i++) {
+                EvRectangle doc_rect;
+                GdkRectangle view_rect;
 
-            /*
-             * sementara hanya debug
-             */
+                doc_rect.x1 = columns[i].rect.x;
+                doc_rect.y1 = columns[i].rect.y;
+                doc_rect.x2 = columns[i].rect.x +
+                              columns[i].rect.width;
+                doc_rect.y2 = columns[i].rect.y +
+                              columns[i].rect.height;
+
+                doc_rect_to_view_rect (view,
+                                       page,
+                                       &doc_rect,
+                                       &view_rect);
+
+                view_rect.x -= view->scroll_x;
+                view_rect.y -= view->scroll_y;
+
+
+                draw_overlay_paragraf(view, cr,
+                    view_rect.x,
+                    view_rect.y,
+                    view_rect.width,
+                    view_rect.height
+                );
+            }
 
             g_free (columns);
         }
@@ -5923,7 +6086,6 @@ draw_one_page (EvView       *view,
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
         guint n_paragraphs = 0;
-        guint i;
 
         if (ev_view_get_text_paragraphs_for_page (
                         view,

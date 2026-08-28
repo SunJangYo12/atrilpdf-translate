@@ -224,6 +224,7 @@ typedef struct {
 typedef struct {
     gdouble x1;
     gdouble x2;
+    GdkRectangle rect;
 } EvTextColumn;
 
 struct _EvViewClass {
