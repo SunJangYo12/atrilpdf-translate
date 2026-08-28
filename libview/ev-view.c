@@ -3395,7 +3395,232 @@ ev_view_realize (GtkWidget *widget)
 #endif
 
 static gboolean
-ev_view_scroll_event (GtkWidget *widget, GdkEventScroll *event)
+ev_view_scroll_event (GtkWidget      *widget,
+                      GdkEventScroll *event)
+{
+    EvView *view = EV_VIEW (widget);
+    guint state;
+
+
+    state =
+        event->state &
+        gtk_accelerator_get_default_mod_mask ();
+
+    g_print ("SCROLL: mouse=%f,%f box=%d,%d %dx%d active=%d\n",
+         event->x,
+         event->y,
+         view->paragraph_box_x,
+         view->paragraph_box_y,
+         view->paragraph_box_width,
+         view->paragraph_box_height,
+         view->paragraph_overlay_active);
+
+
+    /*
+     * ============================================================
+     * CTRL + WHEEL
+     *
+     * Tetap digunakan untuk zoom PDF.
+     * ============================================================
+     */
+
+    if (state == GDK_CONTROL_MASK) {
+
+        ev_document_model_set_sizing_mode (
+            view->model,
+            EV_SIZING_FREE);
+
+        if (event->direction == GDK_SCROLL_UP ||
+            event->direction == GDK_SCROLL_LEFT) {
+
+            if (ev_view_can_zoom_in (view))
+                ev_view_zoom_in (view);
+
+        } else {
+
+            if (ev_view_can_zoom_out (view))
+                ev_view_zoom_out (view);
+        }
+
+        return TRUE;
+    }
+
+
+    /*
+     * ============================================================
+     * PARAGRAPH OVERLAY SCROLL
+     *
+     * Hanya kalau overlay aktif.
+     * ============================================================
+     */
+
+    if (view->paragraph_overlay_active &&
+        state == 0) {
+
+        gdouble mouse_x;
+        gdouble mouse_y;
+
+
+        /*
+         * Posisi mouse relatif terhadap EvView.
+         */
+        mouse_x = event->x;
+        mouse_y = event->y;
+
+
+        /*
+         * Apakah mouse berada di dalam textbox?
+         */
+        if (mouse_x >= view->paragraph_box_x &&
+            mouse_x <=
+                view->paragraph_box_x +
+                view->paragraph_box_width &&
+
+            mouse_y >= view->paragraph_box_y &&
+            mouse_y <=
+                view->paragraph_box_y +
+                view->paragraph_box_height) {
+
+
+            /*
+             * Wheel DOWN
+             */
+            if (event->direction == GDK_SCROLL_DOWN) {
+
+                view->paragraph_scroll += 30.0;
+            }
+
+
+            /*
+             * Wheel UP
+             */
+            else if (event->direction == GDK_SCROLL_UP) {
+
+                view->paragraph_scroll -= 30.0;
+            }
+
+
+            /*
+             * Batasi scroll atas.
+             */
+            if (view->paragraph_scroll < 0)
+                view->paragraph_scroll = 0;
+
+
+            /*
+             * Batasi scroll bawah.
+             */
+            if (view->paragraph_scroll >
+                view->paragraph_content_height -
+                view->paragraph_box_height) {
+
+                view->paragraph_scroll =
+                    view->paragraph_content_height -
+                    view->paragraph_box_height;
+            }
+
+
+            /*
+             * Pastikan tidak menjadi negatif
+             * kalau isi text lebih pendek dari box.
+             */
+            if (view->paragraph_scroll < 0)
+                view->paragraph_scroll = 0;
+
+
+            /*
+             * Gambar ulang EvView.
+             */
+            gtk_widget_queue_draw (widget);
+
+
+            /*
+             * Jangan teruskan event ini ke
+             * scrolling PDF.
+             */
+            return TRUE;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * KODE SCROLL ATRIL ASLI
+     * ============================================================
+     */
+
+    view->jump_to_find_result = FALSE;
+
+
+    /*
+     * Shift + Wheel
+     * scroll perpendicular.
+     */
+    if (state & GDK_SHIFT_MASK) {
+
+        if (event->direction == GDK_SCROLL_UP) {
+
+            event->direction =
+                GDK_SCROLL_LEFT;
+
+        } else if (event->direction ==
+                   GDK_SCROLL_LEFT) {
+
+            event->direction =
+                GDK_SCROLL_UP;
+
+        } else if (event->direction ==
+                   GDK_SCROLL_DOWN) {
+
+            event->direction =
+                GDK_SCROLL_RIGHT;
+
+        } else if (event->direction ==
+                   GDK_SCROLL_RIGHT) {
+
+            event->direction =
+                GDK_SCROLL_DOWN;
+        }
+
+        event->state &= ~GDK_SHIFT_MASK;
+        state &= ~GDK_SHIFT_MASK;
+    }
+
+
+    /*
+     * Best-fit single page.
+     */
+    if (state == 0 &&
+        view->sizing_mode == EV_SIZING_BEST_FIT &&
+        !view->continuous) {
+
+        switch (event->direction) {
+
+        case GDK_SCROLL_DOWN:
+        case GDK_SCROLL_RIGHT:
+
+            ev_view_next_page (view);
+            break;
+
+        case GDK_SCROLL_UP:
+        case GDK_SCROLL_LEFT:
+
+            ev_view_previous_page (view);
+            break;
+
+        default:
+            break;
+        }
+
+        return TRUE;
+    }
+
+
+    return FALSE;
+}
+
+static gboolean
+zzev_view_scroll_event (GtkWidget *widget, GdkEventScroll *event)
 {
 	EvView *view = EV_VIEW (widget);
 	guint state;
@@ -4532,6 +4757,147 @@ ev_view_get_paragraph_text (EvView *view,
     return g_string_free (paragraph, FALSE);
 }
 
+
+static void
+on_translate_button_clicked (GtkButton *button,
+                              gpointer   user_data)
+{
+    EvView *view = EV_VIEW (user_data);
+    //gchar *paragraph_text;
+
+    if (!view)
+        return;
+
+    g_print ("TRANSLATE page=%d index=%d\n",
+             view->translate_page,
+             view->translate_index);
+
+
+    gchar *paragraph_text;
+
+    paragraph_text =
+        ev_view_get_paragraph_text (
+            view,
+            view->translate_page,
+            (guint)view->translate_index);
+
+/*
+    paragraph_text =
+        ev_view_get_paragraph_text (
+            view,
+            view->translate_page,
+            (guint) view->translate_index);
+
+    if (paragraph_text) {
+
+        g_print ("\n");
+        g_print ("========================================\n");
+        g_print ("TRANSLATE BUTTON CLICKED\n");
+        g_print ("PAGE  : %d\n",
+                 view->translate_page);
+        g_print ("INDEX : %d\n",
+                 view->translate_index);
+        g_print ("----------------------------------------\n");
+        g_print ("%s\n", paragraph_text);
+        g_print ("========================================\n");
+
+        g_free (paragraph_text);
+
+    } else {
+        g_print ("PARAGRAPH TEXT: NULL\n");
+    }*/
+}
+
+static void
+show_translate_window (EvView *view,
+                       gint x,
+                       gint y)
+{
+    GtkWidget *toplevel;
+    gint root_x;
+    gint root_y;
+
+    /*
+     * Simpan paragraph yang sedang ditampilkan.
+     */
+    //view->translate_page = page;
+    //view->translate_index = index;
+
+
+    if (!view->translate_window) {
+
+        GtkWidget *button;
+
+        toplevel =
+            gtk_widget_get_toplevel (GTK_WIDGET (view));
+
+
+        view->translate_window =
+            gtk_window_new (GTK_WINDOW_POPUP);
+
+
+        gtk_window_set_decorated (
+            GTK_WINDOW (view->translate_window),
+            FALSE);
+
+
+        gtk_window_set_resizable (
+            GTK_WINDOW (view->translate_window),
+            FALSE);
+
+
+        button =
+            gtk_button_new_with_label ("Translate");
+
+
+        view->translate_button = button;
+
+
+        gtk_container_add (
+            GTK_CONTAINER (view->translate_window),
+            button);
+
+
+        /*
+         * Callback button Translate.
+         *
+         * view menjadi user_data.
+         */
+        g_signal_connect (
+            button,
+            "clicked",
+            G_CALLBACK (on_translate_button_clicked),
+            view);
+        gtk_widget_show (button);
+    }
+
+
+    /*
+     * Koordinat x,y relatif terhadap EvView.
+     *
+     * Ubah ke koordinat root window.
+     */
+    gdk_window_get_origin (
+        gtk_widget_get_window (GTK_WIDGET (view)),
+        &root_x,
+        &root_y);
+
+    gtk_window_move (
+        GTK_WINDOW (view->translate_window),
+        root_x + x,
+        root_y + y);
+    gtk_widget_show (
+        view->translate_window);
+}
+
+static void
+hide_translate_window (EvView *view)
+{
+    if (view->translate_window)
+        gtk_widget_hide (view->translate_window);
+}
+
+
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
@@ -4611,9 +4977,8 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 				view->translate_index = index;
                 view->translate_rect = view_rect;
 
-                gchar *paragraph_text;
+                /*gchar *paragraph_text;
 
-                /*
                 paragraph_text = ev_view_get_paragraph_text (
                     view,
                     page,
@@ -4628,7 +4993,6 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
                     g_free (paragraph_text);
                 }*/
-
 
 				/*BUG ev_view_position_translate_button (
 					view,
@@ -5174,72 +5538,6 @@ hide_loading_window (EvView *view)
 }
 
 
-static void
-show_translate_window (EvView *view,
-                       gint x,
-                       gint y)
-{
-    GtkWidget *toplevel;
-    gint root_x;
-    gint root_y;
-
-    if (!view->translate_window) {
-        GtkWidget *button;
-
-        toplevel =
-            gtk_widget_get_toplevel (GTK_WIDGET (view));
-
-        view->translate_window =
-            gtk_window_new (GTK_WINDOW_POPUP);
-
-        gtk_window_set_decorated (
-            GTK_WINDOW (view->translate_window),
-            FALSE);
-
-        gtk_window_set_resizable (
-            GTK_WINDOW (view->translate_window),
-            FALSE);
-
-        button =
-            gtk_button_new_with_label ("Translate");
-
-        view->translate_button = button;
-
-        gtk_container_add (
-            GTK_CONTAINER (view->translate_window),
-            button);
-
-        gtk_widget_show (button);
-    }
-
-    /*
-     * Koordinat x,y sekarang adalah koordinat
-     * relatif terhadap EvView.
-     *
-     * Ubah ke koordinat root window.
-     */
-    gdk_window_get_origin (
-        gtk_widget_get_window (GTK_WIDGET (view)),
-        &root_x,
-        &root_y);
-
-    gtk_window_move (
-        GTK_WINDOW (view->translate_window),
-        root_x + x,
-        root_y + y);
-
-    gtk_widget_show (
-        view->translate_window);
-}
-
-static void
-hide_translate_window (EvView *view)
-{
-    if (view->translate_window)
-        gtk_widget_hide (view->translate_window);
-}
-
-
 
 
 static void
@@ -5353,6 +5651,560 @@ ev_view_get_text_for_glyph_range (EvView *view,
 
 
 // deteksi semua paragraf by page
+static gboolean
+zzev_view_get_text_paragraphs_for_page (EvView            *view,
+                                      gint               page,
+                                      EvTextParagraph  **paragraphs,
+                                      guint             *n_paragraphs)
+{
+	EvRectangle *areas = NULL;
+	guint n_areas = 0;
+
+	gdouble line_tolerance = 3.0;
+	gdouble x_tolerance = 8.0;
+	gdouble paragraph_gap_factor = 1.8;
+
+	gdouble *line_centers = NULL;
+	gdouble *line_tops = NULL;
+	gdouble *line_bottoms = NULL;
+	gdouble *line_x1 = NULL;
+	gdouble *line_x2 = NULL;
+
+	gint *line_first = NULL;
+	gint *line_last = NULL;
+
+	guint n_lines = 0;
+	guint i;
+
+	EvTextParagraph *result = NULL;
+	guint result_count = 0;
+
+
+	/*
+	 * ============================================================
+	 * GET TEXT LAYOUT
+	 * ============================================================
+	 */
+
+	if (!ev_page_cache_get_text_layout (view->page_cache,
+	                                    page,
+	                                    &areas,
+	                                    &n_areas))
+		return FALSE;
+
+	if (!areas || n_areas == 0)
+		return FALSE;
+
+
+	/*
+	 * Maksimal jumlah line = jumlah glyph.
+	 */
+	line_centers = g_new0 (gdouble, n_areas);
+	line_tops = g_new0 (gdouble, n_areas);
+	line_bottoms = g_new0 (gdouble, n_areas);
+	line_x1 = g_new0 (gdouble, n_areas);
+	line_x2 = g_new0 (gdouble, n_areas);
+
+	line_first = g_new0 (gint, n_areas);
+	line_last = g_new0 (gint, n_areas);
+
+
+	/*
+	 * ============================================================
+	 * PASS 1
+	 *
+	 * Kelompokkan glyph menjadi LINE.
+	 *
+	 * PERBAIKAN:
+	 *
+	 * Sebelumnya hanya:
+	 *
+	 *     center_y sama
+	 *
+	 * Sekarang:
+	 *
+	 *     center_y sama
+	 *     +
+	 *     posisi X masih berada pada line yang sama
+	 *
+	 * Ini penting untuk PDF multi-column.
+	 * ============================================================
+	 */
+
+	for (i = 0; i < n_areas; i++) {
+
+		gdouble center_y;
+		guint j;
+		gboolean added = FALSE;
+
+		center_y =
+			(areas[i].y1 + areas[i].y2) / 2.0;
+
+
+		for (j = 0; j < n_lines; j++) {
+
+			gboolean same_y;
+			gboolean same_x;
+
+
+			/*
+			 * Apakah glyph berada pada tinggi line
+			 * yang sama?
+			 */
+			same_y =
+				fabs (center_y - line_centers[j])
+				<= line_tolerance;
+
+
+			/*
+			 * Apakah posisi X glyph masih berhubungan
+			 * dengan line tersebut?
+			 *
+			 * Jangan hanya menggunakan overlap murni,
+			 * karena antar glyph biasanya ada sedikit
+			 * jarak.
+			 */
+			same_x =
+				areas[i].x2 >= line_x1[j] - x_tolerance &&
+				areas[i].x1 <= line_x2[j] + x_tolerance;
+
+
+			/*
+			 * Hanya gabungkan jika Y DAN X cocok.
+			 */
+			if (same_y && same_x) {
+
+				/*
+				 * Glyph paling kiri.
+				 */
+				if (areas[i].x1 < line_x1[j]) {
+					line_x1[j] = areas[i].x1;
+					line_first[j] = i;
+				}
+
+
+				/*
+				 * Glyph paling kanan.
+				 */
+				if (areas[i].x2 > line_x2[j]) {
+					line_x2[j] = areas[i].x2;
+					line_last[j] = i;
+				}
+
+
+				/*
+				 * Batas vertikal line.
+				 */
+				if (areas[i].y1 < line_tops[j])
+					line_tops[j] = areas[i].y1;
+
+				if (areas[i].y2 > line_bottoms[j])
+					line_bottoms[j] = areas[i].y2;
+
+
+				/*
+				 * Update center Y.
+				 */
+				line_centers[j] =
+					(line_tops[j] +
+					 line_bottoms[j]) / 2.0;
+
+
+				added = TRUE;
+
+				break;
+			}
+		}
+
+
+		/*
+		 * Tidak menemukan line yang cocok.
+		 *
+		 * Buat line baru.
+		 */
+		if (!added) {
+
+			line_centers[n_lines] =
+				center_y;
+
+			line_tops[n_lines] =
+				areas[i].y1;
+
+			line_bottoms[n_lines] =
+				areas[i].y2;
+
+			line_x1[n_lines] =
+				areas[i].x1;
+
+			line_x2[n_lines] =
+				areas[i].x2;
+
+			line_first[n_lines] =
+				i;
+
+			line_last[n_lines] =
+				i;
+
+			n_lines++;
+		}
+	}
+
+
+	/*
+	 * ============================================================
+	 * SORT LINE
+	 *
+	 * PDF akademik kadang menyimpan glyph tidak persis dalam
+	 * urutan visual.
+	 *
+	 * Kita perlu line diurutkan:
+	 *
+	 *     Y dari atas ke bawah
+	 *     X dari kiri ke kanan
+	 *
+	 * Supaya PASS 2 tidak menganggap line dari kolom berbeda
+	 * sebagai paragraph berurutan.
+	 * ============================================================
+	 *
+	 * Untuk sementara menggunakan insertion sort.
+	 * Jumlah line biasanya tidak terlalu besar.
+	 */
+
+	for (i = 1; i < n_lines; i++) {
+
+		gdouble tmp_center;
+		gdouble tmp_top;
+		gdouble tmp_bottom;
+		gdouble tmp_x1;
+		gdouble tmp_x2;
+
+		gint tmp_first;
+		gint tmp_last;
+
+		gint k;
+
+
+		tmp_center = line_centers[i];
+		tmp_top = line_tops[i];
+		tmp_bottom = line_bottoms[i];
+		tmp_x1 = line_x1[i];
+		tmp_x2 = line_x2[i];
+
+		tmp_first = line_first[i];
+		tmp_last = line_last[i];
+
+
+		k = i - 1;
+
+
+		while (k >= 0) {
+
+			gboolean move;
+
+
+			move = FALSE;
+
+
+			/*
+			 * Y lebih besar → turun.
+			 */
+			if (line_tops[k] > tmp_top) {
+
+				move = TRUE;
+
+			} else if (fabs (line_tops[k] - tmp_top) <=
+			           line_tolerance) {
+
+				/*
+				 * Kalau Y sama, X lebih besar
+				 * berarti harus berada setelah tmp.
+				 */
+				if (line_x1[k] > tmp_x1)
+					move = TRUE;
+			}
+
+
+			if (!move)
+				break;
+
+
+			line_centers[k + 1] = line_centers[k];
+			line_tops[k + 1] = line_tops[k];
+			line_bottoms[k + 1] = line_bottoms[k];
+			line_x1[k + 1] = line_x1[k];
+			line_x2[k + 1] = line_x2[k];
+
+			line_first[k + 1] = line_first[k];
+			line_last[k + 1] = line_last[k];
+
+
+			k--;
+		}
+
+
+		line_centers[k + 1] = tmp_center;
+		line_tops[k + 1] = tmp_top;
+		line_bottoms[k + 1] = tmp_bottom;
+		line_x1[k + 1] = tmp_x1;
+		line_x2[k + 1] = tmp_x2;
+
+		line_first[k + 1] = tmp_first;
+		line_last[k + 1] = tmp_last;
+	}
+
+
+	/*
+	 * ============================================================
+	 * PASS 2
+	 *
+	 * Kelompokkan LINE menjadi PARAGRAPH.
+	 *
+	 * PERBAIKAN:
+	 *
+	 * Selain gap Y, kita cek hubungan X.
+	 *
+	 * Jadi:
+	 *
+	 *     column A line
+	 *     column B line
+	 *
+	 * tidak langsung dianggap satu paragraph.
+	 * ============================================================
+	 */
+
+	if (n_lines > 0) {
+
+		guint paragraph_first_line = 0;
+
+
+		for (i = 1; i <= n_lines; i++) {
+
+			gboolean new_paragraph = FALSE;
+
+
+			/*
+			 * ====================================================
+			 * SENTINEL
+			 * ====================================================
+			 */
+
+			if (i == n_lines) {
+
+				new_paragraph = TRUE;
+
+			} else {
+
+				gdouble previous_bottom;
+				gdouble current_top;
+				gdouble gap;
+
+				gdouble line_height;
+
+				gboolean x_related;
+
+
+				/*
+				 * ----------------------------------------------
+				 * Vertical gap
+				 * ----------------------------------------------
+				 */
+
+				previous_bottom =
+					line_bottoms[i - 1];
+
+				current_top =
+					line_tops[i];
+
+				gap =
+					current_top -
+					previous_bottom;
+
+
+				line_height =
+					line_bottoms[i - 1] -
+					line_tops[i - 1];
+
+
+				if (line_height < 1.0)
+					line_height = 10.0;
+
+
+				/*
+				 * ----------------------------------------------
+				 * RULE 1
+				 *
+				 * Gap besar = paragraph baru.
+				 * ----------------------------------------------
+				 */
+
+				if (gap >
+				    line_height * paragraph_gap_factor) {
+
+					new_paragraph = TRUE;
+				}
+
+
+				/*
+				 * ----------------------------------------------
+				 * RULE 2
+				 *
+				 * Cek hubungan X.
+				 *
+				 * Jika dua line benar-benar berasal dari
+				 * area X yang berbeda, jangan gabungkan.
+				 * ----------------------------------------------
+				 */
+
+				x_related =
+					line_x2[i] >=
+						line_x1[i - 1] - x_tolerance &&
+					line_x1[i] <=
+						line_x2[i - 1] + x_tolerance;
+
+
+				if (!x_related) {
+
+					new_paragraph = TRUE;
+				}
+			}
+
+
+			/*
+			 * ====================================================
+			 * BUAT PARAGRAPH
+			 * ====================================================
+			 */
+
+			if (new_paragraph) {
+
+				guint first_glyph;
+				guint last_glyph;
+
+				gdouble x1 = G_MAXDOUBLE;
+				gdouble y1 = G_MAXDOUBLE;
+				gdouble x2 = -G_MAXDOUBLE;
+				gdouble y2 = -G_MAXDOUBLE;
+
+				guint l;
+
+
+				first_glyph =
+					line_first[paragraph_first_line];
+
+				last_glyph =
+					line_last[i - 1];
+
+
+				/*
+				 * Cari bounding box seluruh line
+				 * dalam paragraph.
+				 */
+				for (l = paragraph_first_line;
+				     l < i;
+				     l++) {
+
+					if (line_x1[l] < x1)
+						x1 = line_x1[l];
+
+					if (line_tops[l] < y1)
+						y1 = line_tops[l];
+
+					if (line_x2[l] > x2)
+						x2 = line_x2[l];
+
+					if (line_bottoms[l] > y2)
+						y2 = line_bottoms[l];
+				}
+
+
+				/*
+				 * Pastikan rectangle valid.
+				 */
+				if (x1 != G_MAXDOUBLE &&
+				    y1 != G_MAXDOUBLE &&
+				    x2 >= x1 &&
+				    y2 >= y1) {
+
+					/*
+					 * Tambahkan paragraph.
+					 */
+					result = g_realloc (
+						result,
+						sizeof (EvTextParagraph) *
+						(result_count + 1));
+
+
+					result[result_count].first_index =
+						first_glyph;
+
+					result[result_count].last_index =
+						last_glyph;
+
+
+					result[result_count].rect.x =
+						(gint) floor (x1);
+
+					result[result_count].rect.y =
+						(gint) floor (y1);
+
+					result[result_count].rect.width =
+						(gint) ceil (x2 - x1);
+
+					result[result_count].rect.height =
+						(gint) ceil (y2 - y1);
+
+
+					result_count++;
+				}
+
+
+				/*
+				 * Paragraph berikutnya dimulai
+				 * dari line sekarang.
+				 */
+				paragraph_first_line = i;
+			}
+		}
+	}
+
+
+	/*
+	 * ============================================================
+	 * FREE
+	 * ============================================================
+	 */
+
+	g_free (line_centers);
+	g_free (line_tops);
+	g_free (line_bottoms);
+	g_free (line_x1);
+	g_free (line_x2);
+
+	g_free (line_first);
+	g_free (line_last);
+
+
+	/*
+	 * ============================================================
+	 * RESULT
+	 * ============================================================
+	 */
+
+	if (result_count == 0) {
+
+		g_free (result);
+
+		return FALSE;
+	}
+
+
+	*paragraphs = result;
+	*n_paragraphs = result_count;
+
+
+	return TRUE;
+}
+
 static gboolean
 ev_view_get_text_paragraphs_for_page (EvView            *view,
                                       gint                page,
@@ -5679,240 +6531,291 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	return TRUE;
 }
 
-// detect colom in page
-static gboolean
-ev_view_get_text_columns_for_page (EvView          *view,
-                                   gint             page,
-                                   EvTextColumn   **columns,
-                                   guint           *n_columns)
+static void
+draw_overlay_paragraf (EvView  *view,
+                       cairo_t *cr,
+                       gchar   *text,
+                       gint     x,
+                       gint     y,
+                       gint     width,
+                       gint     height)
 {
-    EvRectangle *areas = NULL;
-    guint n_areas = 0;
+    view->paragraph_box_x = x;
+    view->paragraph_box_y = y;
+    view->paragraph_box_width = width;
+    view->paragraph_box_height = height;
 
-    EvTextColumn *result = NULL;
-    guint result_count = 0;
+    cairo_text_extents_t extents;
+    gdouble line_height = 20.0;
+    gdouble text_x;
+    gdouble text_y;
+    gdouble current_y;
+    gchar **lines;
+    gint i;
 
-    guint i;
-    guint j;
+    if (!text)
+        return;
 
-    /*
-     * Toleransi horizontal.
-     *
-     * Glyph yang posisi X-nya berdekatan
-     * akan dianggap berada pada region/kolom yang sama.
-     */
-    gdouble x_tolerance = 5.0;
-
-    if (!ev_page_cache_get_text_layout (view->page_cache,
-                                        page,
-                                        &areas,
-                                        &n_areas))
-        return FALSE;
-
-    if (!areas || n_areas == 0)
-        return FALSE;
-
-
-    /*
-     * Maksimal jumlah region = jumlah glyph.
-     */
-    result = g_new0 (EvTextColumn, n_areas);
+    cairo_save (cr);
 
 
     /*
      * ============================================================
-     * PASS 1
-     *
-     * Kelompokkan glyph berdasarkan posisi X.
+     * BOX
      * ============================================================
      */
 
-    for (i = 0; i < n_areas; i++) {
+    cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
 
-        gdouble glyph_x1;
-        gdouble glyph_x2;
+    cairo_rectangle (
+        cr,
+        x,
+        y,
+        width,
+        height);
 
-        gboolean added = FALSE;
+    cairo_fill (cr);
 
-        glyph_x1 = areas[i].x1;
-        glyph_x2 = areas[i].x2;
+
+    /*
+     * Border.
+     */
+
+    cairo_set_source_rgb (
+        cr,
+        0.5,
+        0.5,
+        0.0);
+
+    cairo_set_line_width (cr, 1.0);
+
+    cairo_rectangle (
+        cr,
+        x,
+        y,
+        width,
+        height);
+
+    cairo_stroke (cr);
+
+
+    /*
+     * ============================================================
+     * CLIP
+     *
+     * Text tidak boleh keluar dari box.
+     * ============================================================
+     */
+
+    cairo_rectangle (
+        cr,
+        x + 1,
+        y + 1,
+        width - 2,
+        height - 2);
+
+    cairo_clip (cr);
+
+
+    /*
+     * ============================================================
+     * FONT
+     * ============================================================
+     */
+
+    cairo_select_font_face (
+        cr,
+        "Sans",
+        CAIRO_FONT_SLANT_NORMAL,
+        CAIRO_FONT_WEIGHT_NORMAL);
+
+    cairo_set_font_size (
+        cr,
+        14);
+
+
+    /*
+     * Padding text.
+     */
+
+    text_x = x + 8;
+
+    text_y =
+        y + 20 -
+        view->paragraph_scroll;
+
+
+    /*
+     * ============================================================
+     * TEXT WRAPPING
+     * ============================================================
+     */
+
+    lines = g_strsplit (
+        text,
+        "\n",
+        -1);
+
+
+    current_y = text_y;
+
+
+    for (i = 0; lines[i] != NULL; i++) {
+
+        gchar *line;
+        gchar *word;
+        gchar **words;
+        GString *current_line;
+
+
+        line = lines[i];
+
+        words =
+            g_strsplit (
+                line,
+                " ",
+                -1);
+
+        current_line =
+            g_string_new ("");
 
 
         /*
-         * Cek apakah glyph ini masuk
-         * ke region yang sudah ada.
+         * Word wrapping.
          */
-        for (j = 0; j < result_count; j++) {
 
-            gdouble column_x1;
-            gdouble column_x2;
+        gint w;
 
-            column_x1 = result[j].rect.x;
+        for (w = 0; words[w] != NULL; w++) {
 
-            column_x2 =
-                result[j].rect.x +
-                result[j].rect.width;
+            gchar *test;
+            gdouble text_width;
 
 
-            /*
-             * Jika glyph overlap / dekat dengan
-             * region yang sudah ada, gabungkan.
-             */
-            if (glyph_x2 >= column_x1 - x_tolerance &&
-                glyph_x1 <= column_x2 + x_tolerance) {
+            if (current_line->len > 0) {
 
-                gint new_x1;
-                gint new_x2;
+                test =
+                    g_strdup_printf (
+                        "%s %s",
+                        current_line->str,
+                        words[w]);
 
-                new_x1 = MIN ((gint) floor (glyph_x1),
-                              column_x1);
+            } else {
 
-                new_x2 = MAX ((gint) ceil (glyph_x2),
-                              column_x2);
-
-
-                result[j].rect.x = new_x1;
-
-                result[j].rect.width =
-                    new_x2 - new_x1;
-
-
-                added = TRUE;
-
-                break;
+                test =
+                    g_strdup (
+                        words[w]);
             }
+
+
+            cairo_text_extents (
+                cr,
+                test,
+                &extents);
+
+
+            text_width =
+                extents.x_advance;
+
+
+            if (text_width >
+                width - 16 &&
+                current_line->len > 0) {
+
+                /*
+                 * Gambar line sebelumnya.
+                 */
+
+                cairo_move_to (
+                    cr,
+                    text_x,
+                    current_y);
+
+                cairo_show_text (
+                    cr,
+                    current_line->str);
+
+
+                current_y += line_height;
+
+
+                g_string_assign (
+                    current_line,
+                    words[w]);
+
+            } else {
+
+                g_string_assign (
+                    current_line,
+                    test);
+            }
+
+
+            g_free (test);
         }
 
 
         /*
-         * Kalau tidak masuk region manapun,
-         * buat region baru.
+         * Gambar line terakhir.
          */
-        if (!added) {
 
-            result[result_count].rect.x =
-                (gint) floor (glyph_x1);
+        if (current_line->len > 0) {
 
-            result[result_count].rect.y =
-                (gint) floor (areas[i].y1);
+            cairo_move_to (
+                cr,
+                text_x,
+                current_y);
 
-            result[result_count].rect.width =
-                (gint) ceil (glyph_x2 - glyph_x1);
+            cairo_show_text (
+                cr,
+                current_line->str);
 
-            result[result_count].rect.height =
-                (gint) ceil (areas[i].y2 - areas[i].y1);
-
-            result_count++;
+            current_y += line_height;
         }
+
+
+        g_string_free (
+            current_line,
+            TRUE);
+
+        g_strfreev (words);
+
+
+        /*
+         * Jarak antar paragraph/newline.
+         */
+
+        current_y += 4;
     }
+
+
+    g_strfreev (lines);
 
 
     /*
      * ============================================================
-     * PASS 2
+     * SCROLLBAR
+     * ============================================================
      *
-     * Sekarang hitung Y dan tinggi seluruh region.
-     *
-     * Karena region dibuat berdasarkan X, kita scan kembali
-     * semua glyph untuk mencari batas Y masing-masing region.
+     * Nanti kita bisa gambar scrollbar di sini.
      * ============================================================
      */
 
-    for (i = 0; i < result_count; i++) {
 
-        gdouble y1 = G_MAXDOUBLE;
-        gdouble y2 = -G_MAXDOUBLE;
-
-        gdouble column_x1;
-        gdouble column_x2;
-
-
-        column_x1 = result[i].rect.x;
-
-        column_x2 =
-            result[i].rect.x +
-            result[i].rect.width;
-
-
-        for (j = 0; j < n_areas; j++) {
-
-            gdouble glyph_center_x;
-
-            glyph_center_x =
-                (areas[j].x1 + areas[j].x2) / 2.0;
-
-
-            /*
-             * Glyph berada di region X ini.
-             */
-            if (glyph_center_x >= column_x1 - x_tolerance &&
-                glyph_center_x <= column_x2 + x_tolerance) {
-
-                if (areas[j].y1 < y1)
-                    y1 = areas[j].y1;
-
-                if (areas[j].y2 > y2)
-                    y2 = areas[j].y2;
-            }
-        }
-
-
-        if (y1 != G_MAXDOUBLE &&
-            y2 != -G_MAXDOUBLE) {
-
-            result[i].rect.y =
-                (gint) floor (y1);
-
-            result[i].rect.height =
-                (gint) ceil (y2 - y1);
-        }
-    }
-
-
-    /*
-     * ============================================================
-     * DEBUG
-     * ============================================================
-     */
-
-    g_print ("\n");
-    g_print ("PAGE %d COLUMNS\n", page);
-    g_print ("============================================\n");
-
-    for (i = 0; i < result_count; i++) {
-
-        g_print ("COLUMN %u: %d,%d -> %d,%d  "
-                 "width=%d height=%d\n",
-                 i,
-                 result[i].rect.x,
-                 result[i].rect.y,
-                 result[i].rect.x + result[i].rect.width,
-                 result[i].rect.y + result[i].rect.height,
-                 result[i].rect.width,
-                 result[i].rect.height);
-    }
-
-    g_print ("TOTAL COLUMNS: %u\n", result_count);
-
-
-    /*
-     * Kembalikan hasil.
-     */
-    *columns = result;
-    *n_columns = result_count;
-
-    return result_count > 0;
+    cairo_restore (cr);
 }
 
+static void zdraw_overlay_paragraf(EvView *view, cairo_t *cr, gchar *text, gint x, gint y, gint width, gint height) {
 
-static void draw_overlay_paragraf(EvView *view, cairo_t *cr, gint x, gint y, gint width, gint height) {
+//    if (!view->show_paragraph_overlay)
+//        return;
 
     cairo_save (cr);
     cairo_set_source_rgb (cr, 0.5, 0.5, 0.0);
 
     cairo_rectangle (cr, x, y, width, height);
 
-    cairo_fill (cr);
+    cairo_stroke(cr);
 
     cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
 
@@ -5923,7 +6826,7 @@ static void draw_overlay_paragraf(EvView *view, cairo_t *cr, gint x, gint y, gin
 
     cairo_set_font_size (cr, 14);
     cairo_move_to (cr, x, y + 15);
-    cairo_show_text (cr, "CUSTOM TEXTzzzzzzzzzzzzzzzzioioioioioioi");
+    cairo_show_text (cr, text);
     cairo_restore (cr);
 }
 
@@ -6043,49 +6946,11 @@ draw_one_page (EvView       *view,
             cairo_restore (cr);
         }
 
-        EvTextColumn *columns = NULL;
-        guint n_columns = 0;
-        guint i;
-
-        if (ev_view_get_text_columns_for_page (view,
-                                               page,
-                                               &columns,
-                                               &n_columns)) {
-            for (i = 0; i < n_columns; i++) {
-                EvRectangle doc_rect;
-                GdkRectangle view_rect;
-
-                doc_rect.x1 = columns[i].rect.x;
-                doc_rect.y1 = columns[i].rect.y;
-                doc_rect.x2 = columns[i].rect.x +
-                              columns[i].rect.width;
-                doc_rect.y2 = columns[i].rect.y +
-                              columns[i].rect.height;
-
-                doc_rect_to_view_rect (view,
-                                       page,
-                                       &doc_rect,
-                                       &view_rect);
-
-                view_rect.x -= view->scroll_x;
-                view_rect.y -= view->scroll_y;
-
-
-                draw_overlay_paragraf(view, cr,
-                    view_rect.x,
-                    view_rect.y,
-                    view_rect.width,
-                    view_rect.height
-                );
-            }
-
-            g_free (columns);
-        }
-
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
         guint n_paragraphs = 0;
+        guint i;
 
         if (ev_view_get_text_paragraphs_for_page (
                         view,
@@ -6129,13 +6994,10 @@ draw_one_page (EvView       *view,
                         view_rect.x -= view->scroll_x;
                         view_rect.y -= view->scroll_y;
 
-                        /*g_print ("  view rect : %d,%d %dx%d\n",
-                                 view_rect.x,
-                                 view_rect.y,
-                                 view_rect.width,
-                                 view_rect.height);*/
+                        view->translate_page = page;
+                        view->translate_index = 4;
 
-                        /*draw_overlay_paragraf(view, cr,
+                        /*g_print ("  view rect : %d,%d %dx%d\n",
                                  view_rect.x,
                                  view_rect.y,
                                  view_rect.width,
@@ -6148,12 +7010,18 @@ draw_one_page (EvView       *view,
                                         paragraphs[i].first_index,
                                         paragraphs[i].last_index);
 
+                        draw_overlay_paragraf(view, cr, paragraph_text,
+                                 view_rect.x,
+                                 view_rect.y,
+                                 view_rect.width,
+                                 view_rect.height);
+/*
                         if (paragraph_text) {
-                                //g_print ("  text  :\n%s\n", paragraph_text);
+                                g_print ("  text  :\n%s\n", paragraph_text);
                                 g_free (paragraph_text);
                         } else {
                                 g_print ("  text  : <NULL>\n");
-                        }
+                        }*/
 
                 }
 
@@ -6174,7 +7042,6 @@ draw_one_page (EvView       *view,
                 view,
                 view->translate_rect.x + view->translate_rect.width - 80,
                 view->translate_rect.y - 30);
-
         }
 	}
 }
