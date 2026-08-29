@@ -218,6 +218,9 @@ struct _EvView {
     gboolean hide_paragraph_overlay;
     gint     hide_paragraph_page;
     guint    hide_paragraph_index;
+    gint     hovered_paragraph_page;
+    guint    hovered_paragraph_index;
+
 };
 
 /* JIN */

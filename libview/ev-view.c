@@ -4583,21 +4583,63 @@ on_translate_button_clicked (GtkButton *button,
 
     if (!view)
         return;
+/*
+     * Kalau paragraph yang sedang di-hover
+     * adalah paragraph yang sedang di-hide,
+     * maka klik kedua = tampilkan kembali.
+     */
+    if (view->hide_paragraph_overlay &&
+        view->hide_paragraph_page ==
+            view->hovered_paragraph_page &&
+        view->hide_paragraph_index ==
+            view->hovered_paragraph_index) {
 
-    view->translate_page = view->hide_paragraph_page;
-    view->translate_index = view->hide_paragraph_index;
+        view->hide_paragraph_overlay = FALSE;
 
-    g_print ("TRANSLATE: page=%d index=%u\n",
-             view->hide_paragraph_page,
-             view->hide_paragraph_index);
+        gtk_button_set_label (
+            GTK_BUTTON (view->translate_button),
+            "Original");
 
-    /*
-     * Sembunyikan paragraph yang sedang dipilih.
-    view->hide_paragraph_overlay = TRUE;
+        g_print (
+            "SHOW PARAGRAPH: page=%d index=%u\n",
+            view->hovered_paragraph_page,
+            view->hovered_paragraph_index);
+    }
+    else {
+
+        /*
+         * Klik pertama:
+         * hide paragraph yang sedang di-hover.
+         */
+        view->hide_paragraph_page =
+            view->hovered_paragraph_page;
+
+        view->hide_paragraph_index =
+            view->hovered_paragraph_index;
+
+        view->hide_paragraph_overlay = TRUE;
+        /*
+         * Simpan identitas untuk Translate.
+         */
+        view->translate_page =
+            view->hovered_paragraph_page;
+
+        view->translate_index =
+            view->hovered_paragraph_index;
+
+        gtk_button_set_label (
+            GTK_BUTTON (view->translate_button),
+            "Translate");
+
+        g_print (
+            "HIDE PARAGRAPH: page=%d index=%u\n",
+            view->hide_paragraph_page,
+            view->hide_paragraph_index);
+    }
 
     gtk_widget_queue_draw (
         GTK_WIDGET (view));
-     */
+
 
 
 /*
@@ -4668,7 +4710,7 @@ show_translate_window (EvView *view,
 
 
         button =
-            gtk_button_new_with_label ("Translate");
+            gtk_button_new_with_label ("Original");
 
 
         view->translate_button = button;
@@ -4786,17 +4828,17 @@ ev_view_motion_notify_event (GtkWidget      *widget,
                     overlay = ev_view_get_paragraph_overlay_at(view, x, y);
 
                     if (overlay) {
-                        gtk_widget_queue_draw (GTK_WIDGET (view));
-
-                        view->hide_paragraph_page = overlay->page;
-                        view->hide_paragraph_index = overlay->index;
+                        view->hovered_paragraph_page = overlay->page;
+                        view->hovered_paragraph_index = overlay->index;
 
                         view->translate_rect = view_rect;
 
-                        g_print (
+                        gtk_widget_queue_draw (GTK_WIDGET (view));
+
+                        /*g_print (
                             "HOVER PARAGRAPH: page=%d index=%u direction=\n",
                             overlay->page,
-                            overlay->index);
+                            overlay->index);*/
                     }
 
 
