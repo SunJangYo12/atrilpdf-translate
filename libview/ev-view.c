@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <glib/gi18n-lib.h>
 #include <gtk/gtk.h>
@@ -4583,6 +4584,8 @@ on_translate_button_clicked (GtkButton *button,
 
     if (!view)
         return;
+
+    printf("%d\n", view->is_overlay);
 /*
      * Kalau paragraph yang sedang di-hover
      * adalah paragraph yang sedang di-hide,
@@ -5801,49 +5804,23 @@ draw_overlay_paragraf (EvView  *view,
     gchar **lines;
     gint i;
 
-    if (!text)
-        return;
+    if (!text) return;
 
     cairo_save (cr);
 
+    // BOX
+    cairo_set_source_rgb (cr,
+            view->paragraph_bg_r,
+            view->paragraph_bg_g,
+            view->paragraph_bg_b);
 
-    /*
-     * ============================================================
-     * BOX
-     * ============================================================
-     */
-
-    cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
-
-    cairo_rectangle (
-        cr,
-        x,
-        y,
-        width,
-        height);
-
+    cairo_rectangle(cr, x, y, width, height);
     cairo_fill (cr);
 
-
-    /*
-     * Border.
-     */
-
-    cairo_set_source_rgb (
-        cr,
-        0.5,
-        0.5,
-        0.0);
-
+    // Border
+    cairo_set_source_rgb(cr, 0.5, 0.5, 0.0);
     cairo_set_line_width (cr, 1.0);
-
-    cairo_rectangle (
-        cr,
-        x,
-        y,
-        width,
-        height);
-
+    cairo_rectangle(cr, x, y, width, height);
     cairo_stroke (cr);
 
 
@@ -5854,41 +5831,36 @@ draw_overlay_paragraf (EvView  *view,
      * Text tidak boleh keluar dari box.
      * ============================================================
      */
-
-    cairo_rectangle (
-        cr,
-        x + 1,
-        y + 1,
-        width - 2,
-        height - 2);
-
+    cairo_rectangle(cr, x+1, y+1, width-2, height-2);
     cairo_clip (cr);
 
 
-    /*
-     * ============================================================
-     * FONT
-     * ============================================================
-     */
-
-    cairo_select_font_face (
-        cr,
-        "Sans",
+    // Font
+    cairo_select_font_face(cr,
+        view->paragraph_font,
         CAIRO_FONT_SLANT_NORMAL,
         CAIRO_FONT_WEIGHT_NORMAL);
 
-    cairo_set_font_size (
-        cr,
-        14);
+    cairo_set_font_size(cr, view->paragraph_font_size);
 
 
     /*
-     * Padding text.
+     * Warna text
      */
+    cairo_set_source_rgb(
+        cr,
+        view->paragraph_text_r,
+        view->paragraph_text_g,
+        view->paragraph_text_b);
 
+    line_height =
+        view->paragraph_font_size * 1.4;
+
+
+    // Padding text.
     text_x = x + 8;
-
     text_y = y + 20;
+
     /*
      * HANYA paragraph yang sedang
      * terkena scroll yang digeser.
@@ -5904,73 +5876,33 @@ draw_overlay_paragraf (EvView  *view,
      * TEXT WRAPPING
      * ============================================================
      */
-
-    lines = g_strsplit (
-        text,
-        "\n",
-        -1);
-
-
+    lines = g_strsplit(text, "\n", -1);
     current_y = text_y;
 
-
     for (i = 0; lines[i] != NULL; i++) {
-
         gchar *line;
         gchar *word;
         gchar **words;
         GString *current_line;
 
-
         line = lines[i];
+        words = g_strsplit(line, " ", -1);
+        current_line = g_string_new("");
 
-        words =
-            g_strsplit (
-                line,
-                " ",
-                -1);
-
-        current_line =
-            g_string_new ("");
-
-
-        /*
-         * Word wrapping.
-         */
-
+        // Word wrapping.
         gint w;
-
-        for (w = 0; words[w] != NULL; w++) {
-
+        for (w=0; words[w] != NULL; w++) {
             gchar *test;
             gdouble text_width;
 
-
             if (current_line->len > 0) {
-
-                test =
-                    g_strdup_printf (
-                        "%s %s",
-                        current_line->str,
-                        words[w]);
-
+                test = g_strdup_printf("%s %s", current_line->str, words[w]);
             } else {
-
-                test =
-                    g_strdup (
-                        words[w]);
+                test = g_strdup(words[w]);
             }
 
-
-            cairo_text_extents (
-                cr,
-                test,
-                &extents);
-
-
-            text_width =
-                extents.x_advance;
-
+            cairo_text_extents(cr, test, &extents);
+            text_width = extents.x_advance;
 
             if (text_width >
                 width - 16 &&
@@ -5979,84 +5911,161 @@ draw_overlay_paragraf (EvView  *view,
                 /*
                  * Gambar line sebelumnya.
                  */
-
-                cairo_move_to (
-                    cr,
-                    text_x,
-                    current_y);
-
-                cairo_show_text (
-                    cr,
-                    current_line->str);
-
+                cairo_move_to(cr, text_x, current_y);
+                cairo_show_text(cr, current_line->str);
 
                 current_y += line_height;
 
-
-                g_string_assign (
-                    current_line,
-                    words[w]);
-
+                g_string_assign(current_line, words[w]);
             } else {
-
-                g_string_assign (
-                    current_line,
-                    test);
+                g_string_assign(current_line, test);
             }
-
-
             g_free (test);
         }
-
-
         /*
          * Gambar line terakhir.
          */
-
         if (current_line->len > 0) {
-
-            cairo_move_to (
-                cr,
-                text_x,
-                current_y);
-
-            cairo_show_text (
-                cr,
-                current_line->str);
+            cairo_move_to(cr, text_x, current_y);
+            cairo_show_text(cr, current_line->str);
 
             current_y += line_height;
         }
-
-
-        g_string_free (
-            current_line,
-            TRUE);
-
+        g_string_free(current_line, TRUE);
         g_strfreev (words);
-
-
         /*
          * Jarak antar paragraph/newline.
          */
-
         current_y += 4;
     }
-
-
     g_strfreev (lines);
 
+    cairo_restore (cr);
+}
+
+static void
+ev_view_load_paragraph_config (EvView *view)
+{
+    const gchar *home;
+    gchar *path;
+    gchar *contents = NULL;
+    gsize length = 0;
+    gchar **lines;
+    guint i;
 
     /*
-     * ============================================================
-     * SCROLLBAR
-     * ============================================================
-     *
-     * Nanti kita bisa gambar scrollbar di sini.
-     * ============================================================
+     * Default.
      */
+    view->paragraph_font =
+        g_strdup ("Sans");
 
+    view->paragraph_font_size =
+        14.0;
 
-    cairo_restore (cr);
+    view->paragraph_text_r = 0.0;
+    view->paragraph_text_g = 0.0;
+    view->paragraph_text_b = 0.0;
+
+    view->paragraph_bg_r = 1.0;
+    view->paragraph_bg_g = 1.0;
+    view->paragraph_bg_b = 1.0;
+
+    home = g_get_home_dir ();
+
+    path = g_build_filename (
+        home,
+        ".jinconfig",
+        "atril",
+        NULL);
+
+    /*
+     * Kalau config belum ada,
+     * gunakan default.
+     */
+    if (!g_file_get_contents (
+            path,
+            &contents,
+            &length,
+            NULL)) {
+
+        g_free (path);
+        return;
+    }
+
+    lines = g_strsplit (
+        contents,
+        "\n",
+        -1);
+
+    for (i = 0; lines[i] != NULL; i++) {
+
+        gchar *line;
+        gchar **kv;
+
+        line = g_strstrip (lines[i]);
+
+        if (*line == '\0' || *line == '#')
+            continue;
+
+        kv = g_strsplit (
+            line,
+            "=",
+            2);
+
+        if (!kv[0] || !kv[1]) {
+            g_strfreev (kv);
+            continue;
+        }
+
+        g_strstrip (kv[0]);
+        g_strstrip (kv[1]);
+
+        if (g_strcmp0 (kv[0], "font") == 0) {
+
+            g_free (view->paragraph_font);
+
+            view->paragraph_font =
+                g_strdup (kv[1]);
+
+        } else if (g_strcmp0 (kv[0], "is_overlay") == 0) {
+
+            view->is_overlay =
+                g_ascii_strtod (
+                    kv[1],
+                    NULL);
+
+        } else if (g_strcmp0 (kv[0], "font_size") == 0) {
+
+            view->paragraph_font_size =
+                g_ascii_strtod (
+                    kv[1],
+                    NULL);
+
+        } else if (g_strcmp0 (kv[0], "text_color") == 0) {
+
+            sscanf (
+                kv[1],
+                "%lf,%lf,%lf",
+                &view->paragraph_text_r,
+                &view->paragraph_text_g,
+                &view->paragraph_text_b);
+
+        } else if (g_strcmp0 (kv[0], "background_color") == 0) {
+
+            sscanf (
+                kv[1],
+                "%lf,%lf,%lf",
+                &view->paragraph_bg_r,
+                &view->paragraph_bg_g,
+                &view->paragraph_bg_b);
+        }
+
+        g_strfreev (kv);
+    }
+
+    g_strfreev (lines);
+    g_free (contents);
+    g_free (path);
 }
 
 static void
@@ -6175,6 +6184,7 @@ draw_one_page (EvView       *view,
             cairo_restore (cr);
         }
 
+        if (view->is_overlay == 0) return;
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
@@ -6638,18 +6648,7 @@ ev_view_class_init (EvViewClass *class)
 static void
 ev_view_init (EvView *view)
 {
-/*    view->translate_button = gtk_button_new_with_label ("Translate");
-
-    gtk_widget_set_no_show_all(view->translate_button, TRUE);
-    gtk_widget_hide(view->translate_button);
-
-     * Karena EvView merupakan GtkLayout/GtkBin,
-     * tombol ditempatkan sebagai child widget.
-    gtk_container_add (GTK_CONTAINER (view), view->translate_button);
-
-    view->translate_page = -1;
-    view->translate_index = -1;*/
-
+    ev_view_load_paragraph_config (view);
 
 	gtk_widget_set_can_focus (GTK_WIDGET (view), TRUE);
 #if GTK_CHECK_VERSION (3, 0, 0)

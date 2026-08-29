@@ -1,22 +1,15 @@
-# Depend
+# Example config
 ```
-   28  sudo apt install mate-common
-   29  sudo apt install yelp-tools
-   30  sudo apt install rg
-   31  sudo apt install grep
-   33  sudo apt install libgtk-dev
-   34  sudo apt install libgtk2.0-dev 
-   36  sudo apt install libgail-dev 
-   37  sudo apt install libxml2-dev
-   38  sudo apt install libsecret-1-dev
-   39  sudo apt install libcaja-extension-dev
-   40  sudo apt install libpoppler-glib-dev
-   41  sudo apt install libspectre-dev libtiff5-dev
-   42  sudo apt install libdjvulibre-dev
-   43  sudo apt install libdjvulibre-dev libkpathsea-dev libgxps-dev  libepub-dev libmate-desktop-dev 
+mkdir -p /home/jin/.jinconfig
+nano /home/jin/.jinconfig/atril
 ```
-# Build
+content
 ```
-./autogen
-./configure --prefix=`pwd`/install
+font=Sans
+font_size=11
+text_color=0,0,0
+background_color=1,1,1
+is_overlay=1 
+
 ```
+NOTE: "is_overlay" show all overlay and translate button fitur utama

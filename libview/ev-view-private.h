@@ -208,6 +208,7 @@ struct _EvView {
     gint hovered_test_page;
     gint translate_page;
     gint translate_index;
+    gint is_overlay;
     GdkRectangle translate_rect;
     GtkWidget *translate_window;
     GtkWidget *translate_button;
@@ -220,7 +221,14 @@ struct _EvView {
     guint    hide_paragraph_index;
     gint     hovered_paragraph_page;
     guint    hovered_paragraph_index;
-
+    gchar  *paragraph_font;
+    gdouble paragraph_font_size;
+    gdouble paragraph_text_r;
+    gdouble paragraph_text_g;
+    gdouble paragraph_text_b;
+    gdouble paragraph_bg_r;
+    gdouble paragraph_bg_g;
+    gdouble paragraph_bg_b;
 };
 
 /* JIN */
