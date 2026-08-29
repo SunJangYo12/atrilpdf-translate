@@ -215,6 +215,9 @@ struct _EvView {
     guint    paragraph_scroll_index;
     gdouble  paragraph_scroll;
     GList *paragraph_overlays;
+    gboolean hide_paragraph_overlay;
+    gint     hide_paragraph_page;
+    guint    hide_paragraph_index;
 };
 
 /* JIN */

@@ -3498,8 +3498,6 @@ ev_view_scroll_event (GtkWidget      *widget,
                 overlay->index,
                 event->direction);
 
-
-
             /*
              * Wheel DOWN.
              */
@@ -4582,14 +4580,25 @@ on_translate_button_clicked (GtkButton *button,
                               gpointer   user_data)
 {
     EvView *view = EV_VIEW (user_data);
-    //gchar *paragraph_text;
 
     if (!view)
         return;
 
-    g_print ("TRANSLATE page=%d index=%d\n",
-             view->translate_page,
-             view->translate_index);
+    view->translate_page = view->hide_paragraph_page;
+    view->translate_index = view->hide_paragraph_index;
+
+    g_print ("TRANSLATE: page=%d index=%u\n",
+             view->hide_paragraph_page,
+             view->hide_paragraph_index);
+
+    /*
+     * Sembunyikan paragraph yang sedang dipilih.
+    view->hide_paragraph_overlay = TRUE;
+
+    gtk_widget_queue_draw (
+        GTK_WIDGET (view));
+     */
+
 
 /*
     gchar *paragraph_text;
@@ -4635,13 +4644,6 @@ show_translate_window (EvView *view,
     GtkWidget *toplevel;
     gint root_x;
     gint root_y;
-
-    /*
-     * Simpan paragraph yang sedang ditampilkan.
-     */
-    //view->translate_page = page;
-    //view->translate_index = index;
-
 
     if (!view->translate_window) {
 
@@ -4764,56 +4766,63 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	}
 
 
-{
-	gint page;
-	guint index;
-	EvRectangle *rect;
-	GdkRectangle paragraph_rect;
-	GdkRectangle view_rect;
+    {
+    	gint page;
+    	guint index;
+    	EvRectangle *rect;
+    	GdkRectangle paragraph_rect;
+    	GdkRectangle view_rect;
 
-	if (ev_view_get_text_rect_at_location(view, x, y, &page, &rect, &index)) {
+    	if (ev_view_get_text_rect_at_location(view, x, y, &page, &rect, &index)) {
 
-		if (ev_view_get_text_paragraph_rect(view, page, index, &paragraph_rect)) {
+    		if (ev_view_get_text_paragraph_rect(view, page, index, &paragraph_rect)) {
 
-			ev_view_get_paragraph_view_rect(view, page, &paragraph_rect, &view_rect);
+    			ev_view_get_paragraph_view_rect(view, page, &paragraph_rect, &view_rect);
 
-			/*
-			 * Hanya update posisi jika paragraph berubah.
-			 */
-			if (view->translate_page != page ||
-			    view->translate_index != (gint)index) {
+    			if (view->hide_paragraph_page != page ||
+    			    view->hide_paragraph_index != (gint)index) {
 
-                gtk_widget_queue_draw (GTK_WIDGET (view));
+                    EvParagraphOverlay *overlay;
+                    overlay = ev_view_get_paragraph_overlay_at(view, x, y);
 
-				view->translate_page = page;
-				view->translate_index = index;
-                view->translate_rect = view_rect;
+                    if (overlay) {
+                        gtk_widget_queue_draw (GTK_WIDGET (view));
 
-                /*gchar *paragraph_text;
+                        view->hide_paragraph_page = overlay->page;
+                        view->hide_paragraph_index = overlay->index;
 
-                paragraph_text = ev_view_get_paragraph_text (
-                    view,
-                    page,
-                    (guint)index);
+                        view->translate_rect = view_rect;
 
-                if (paragraph_text) {
-                    g_print ("========== HOVER ==========\n");
-                    g_print ("PAGE  : %d\n", page);
-                    g_print ("INDEX : %d\n", (gint)index);
-                    g_print ("PARAGRAPH:\n%s\n", paragraph_text);
-                    g_print ("============================\n");
+                        g_print (
+                            "HOVER PARAGRAPH: page=%d index=%u direction=\n",
+                            overlay->page,
+                            overlay->index);
+                    }
 
-                    g_free (paragraph_text);
-                }*/
-			}
-		}
-	} else {
-		view->translate_page = -1;
-		view->translate_index = -1;
 
-		//gtk_widget_hide (view->translate_button);
-	}
-}
+                    /*gchar *paragraph_text;
+
+                    paragraph_text = ev_view_get_paragraph_text (
+                        view,
+                        page,
+                        (guint)index);
+
+                    if (paragraph_text) {
+                        g_print ("========== HOVER ==========\n");
+                        g_print ("PAGE  : %d\n", page);
+                        g_print ("INDEX : %d\n", (gint)index);
+                        g_print ("PARAGRAPH:\n%s\n", paragraph_text);
+                        g_print ("============================\n");
+
+                        g_free (paragraph_text);
+                    }*/
+    			}
+    		}
+    	} else {
+    		view->translate_page = -1;
+    		view->translate_index = -1;
+    	}
+    }
 
 
 
@@ -5734,6 +5743,13 @@ draw_overlay_paragraf (EvView  *view,
                        gint     width,
                        gint     height, gint page, guint index)
 {
+
+    if (view->hide_paragraph_overlay &&
+        page == view->hide_paragraph_page &&
+        index == view->hide_paragraph_index) {
+
+        return;
+    }
 
     cairo_text_extents_t extents;
     gdouble line_height = 20.0;
