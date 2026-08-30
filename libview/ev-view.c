@@ -4576,6 +4576,39 @@ ev_view_get_paragraph_text (EvView *view,
 }
 
 
+static gboolean
+on_translate_button_press(GtkWidget      *widget,
+                           GdkEventButton *event,
+                           gpointer        user_data)
+{
+    EvView *view = EV_VIEW (user_data);
+
+    if (!view)
+        return FALSE;
+
+    /*
+     * Klik kanan
+     */
+    if (event->button == 3) {
+
+        if (view->hide_all_paragraph_overlay)
+            view->hide_all_paragraph_overlay = FALSE;
+        else
+            view->hide_all_paragraph_overlay = TRUE;
+        /*
+         * Redraw semua halaman.
+         */
+        gtk_widget_queue_draw (
+            GTK_WIDGET (view));
+
+        g_print ("RIGHT CLICK: HIDE ALL OVERLAY\n");
+
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 static void
 on_translate_button_clicked (GtkButton *button,
                               gpointer   user_data)
@@ -4584,8 +4617,6 @@ on_translate_button_clicked (GtkButton *button,
 
     if (!view)
         return;
-
-    printf("%d\n", view->is_overlay);
 /*
      * Kalau paragraph yang sedang di-hover
      * adalah paragraph yang sedang di-hide,
@@ -4734,6 +4765,11 @@ show_translate_window (EvView *view,
             "clicked",
             G_CALLBACK (on_translate_button_clicked),
             view);
+        g_signal_connect (
+            button,
+            "button-press-event",
+            G_CALLBACK (on_translate_button_press),
+            view);
         gtk_widget_show (button);
     }
 
@@ -4836,7 +4872,11 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
                         view->translate_rect = view_rect;
 
+                        show_translate_window (
+                            view, x,y);
+
                         gtk_widget_queue_draw (GTK_WIDGET (view));
+
 
                         /*g_print (
                             "HOVER PARAGRAPH: page=%d index=%u direction=\n",
@@ -4844,8 +4884,8 @@ ev_view_motion_notify_event (GtkWidget      *widget,
                             overlay->index);*/
                     }
 
-
-                    /*gchar *paragraph_text;
+                    /*
+                    gchar *paragraph_text;
 
                     paragraph_text = ev_view_get_paragraph_text (
                         view,
@@ -5463,7 +5503,7 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	guint n_areas = 0;
 
 	gdouble line_tolerance = 3.0;
-	gdouble paragraph_gap_factor = 1.8;
+	gdouble paragraph_gap_factor = 1.0;
 	gdouble indent_tolerance = 5.0;
 
 	gdouble *line_centers = NULL;
@@ -5788,6 +5828,8 @@ draw_overlay_paragraf (EvView  *view,
                        gint     width,
                        gint     height, gint page, guint index)
 {
+    if (view->hide_all_paragraph_overlay)
+        return;
 
     if (view->hide_paragraph_overlay &&
         page == view->hide_paragraph_page &&
@@ -6293,10 +6335,10 @@ draw_one_page (EvView       *view,
 
                 g_free (paragraphs);
         }
-        show_translate_window (
+        /*show_translate_window (
             view,
-            view->translate_rect.x + view->translate_rect.width - 80,
-            view->translate_rect.y - 30);
+            view->translate_rect.x + view->translate_rect.width,
+            view->translate_rect.y);*/
 	}
 }
 
