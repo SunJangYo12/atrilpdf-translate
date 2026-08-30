@@ -5529,6 +5529,7 @@ ev_view_get_text_columns_for_page (EvView          *view,
     guint n_areas = 0;
 
     gdouble line_tolerance = 3.0;
+    gdouble x_tolerance = 5.0;
     gdouble column_gap = 30.0;
 
     gdouble *line_centers = NULL;
@@ -5589,8 +5590,19 @@ ev_view_get_text_columns_for_page (EvView          *view,
 
         for (j = 0; j < n_lines; j++) {
 
-            if (fabs (center_y - line_centers[j])
-                <= line_tolerance) {
+            gboolean y_match;
+            gboolean x_match;
+
+            y_match =
+                fabs (center_y - line_centers[j]) <= line_tolerance;
+
+            x_match =
+                (areas[i].x1 <= line_x2[j] + x_tolerance) &&
+                (areas[i].x2 >= line_x1[j] - x_tolerance);
+
+            if (y_match && x_match) {
+            //if (fabs (center_y - line_centers[j])
+            //    <= line_tolerance) {
 
                 /*
                  * X kiri.
