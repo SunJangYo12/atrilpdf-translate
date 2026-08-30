@@ -5492,6 +5492,33 @@ ev_view_get_text_for_glyph_range (EvView *view,
 }
 
 
+
+// handler deteksi semua paragraf by page
+static gboolean
+ev_view_is_newline_area (EvView *view,
+                         gint page,
+                         guint index)
+{
+    gchar *text;
+    gboolean result = FALSE;
+
+    text = ev_view_get_text_for_glyph_range (
+        view,
+        page,
+        index,
+        index);
+
+    if (text) {
+        if (strcmp (text, "\n") == 0)
+            result = TRUE;
+
+        g_free (text);
+    }
+
+    return result;
+}
+
+
 // deteksi semua paragraf by page
 static gboolean
 ev_view_get_text_paragraphs_for_page (EvView            *view,
@@ -5553,6 +5580,9 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	 */
 
 	for (i=0; i<n_areas; i++) {
+        if (ev_view_is_newline_area (view, page, i))
+            continue;
+
 		gdouble center_y;
 		guint j;
 		gboolean added = FALSE;
@@ -5601,99 +5631,6 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 			n_lines++;
 		}
 	}
-
-    /*
-     * ============================================================
-     * DEBUG PASS 1
-     *
-     * Tampilkan hasil pengelompokan glyph -> LINE
-     * ============================================================
-     */
-    g_print ("\n========== PASS 1 RESULT ==========\n");
-
-    for (i = 0; i < n_lines; i++) {
-
-        gchar *line_text;
-
-        line_text = ev_view_get_text_for_glyph_range (
-            view,
-            page,
-            line_first[i],
-            line_last[i]);
-
-        g_print (
-            "LINE %u: "
-            "first=%d last=%d "
-            "x1=%.2f x2=%.2f "
-            "y1=%.2f y2=%.2f | \"%s\"\n",
-            i,
-            line_first[i],
-            line_last[i],
-            line_x1[i],
-            line_x2[i],
-            line_tops[i],
-            line_bottoms[i],
-            line_text ? line_text : "");
-
-        g_free (line_text);
-    }
-
-    g_print ("==================================\n");
-
-
-    /*
-    {
-        const gchar *text;
-
-        text = ev_page_cache_get_text (view->page_cache, page);
-
-        g_print ("\n");
-        g_print ("================ PASS 1 ================\n");
-        g_print ("PAGE: %d\n", page);
-        g_print ("TOTAL GLYPH : %u\n", n_areas);
-        g_print ("TOTAL LINE  : %u\n", n_lines);
-        g_print ("\n");
-
-        if (text) {
-            for (guint j = 0; j < n_lines; j++) {
-                GString *line_text;
-                guint k;
-
-                line_text = g_string_new ("");
-
-                for (k = line_first[j];
-                     k <= line_last[j];
-                     k++) {
-
-                    /*
-                     * Untuk debugging PDF ASCII sederhana.
-                     
-                    if (k < strlen (text)) {
-                        gchar c[2];
-
-                        c[0] = text[k];
-                        c[1] = '\0';
-
-                        g_string_append (line_text, c);
-                    }
-                }
-
-                g_print (
-                    "LINE %u: x1=%.2f x2=%.2f "
-                    "y1=%.2f y2=%.2f | \"%s\"\n",
-                    j,
-                    line_x1[j],
-                    line_x2[j],
-                    line_tops[j],
-                    line_bottoms[j],
-                    line_text->str);
-
-                g_string_free (line_text, TRUE);
-            }
-        }
-
-        g_print ("========================================\n\n");
-    }*/
 
 
 	/*

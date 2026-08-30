@@ -1,0 +1,18 @@
+# overlay style
+font=Sans
+font_size=13
+text_color=0,0,0
+background_color=1,1,1
+
+# Ui overlay fitur utama
+is_overlay=1
+
+# batas huruf untuk baris
+line_tolerance=3.0
+
+# batas paragraf
+paragraph_gap_factor=0.8
+
+# batas alenia baru
+indent_tolerance=0.1
+
