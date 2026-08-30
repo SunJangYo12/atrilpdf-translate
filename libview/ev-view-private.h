@@ -230,6 +230,9 @@ struct _EvView {
     gdouble paragraph_bg_r;
     gdouble paragraph_bg_g;
     gdouble paragraph_bg_b;
+    gdouble line_tolerance;
+    gdouble paragraph_gap_factor;
+    gdouble indent_tolerance;
 };
 
 /* JIN */

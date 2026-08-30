@@ -5502,9 +5502,9 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	EvRectangle *areas = NULL;
 	guint n_areas = 0;
 
-	gdouble line_tolerance = 3.0;
-	gdouble paragraph_gap_factor = 1.0;
-	gdouble indent_tolerance = 5.0;
+	gdouble line_tolerance = view->line_tolerance;
+	gdouble paragraph_gap_factor = view->paragraph_gap_factor;
+	gdouble indent_tolerance = view->indent_tolerance;
 
 	gdouble *line_centers = NULL;
 	gdouble *line_tops = NULL;
@@ -5534,14 +5534,14 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	/*
 	 * Maksimal jumlah line = jumlah glyph.
 	 */
-	line_centers = g_new0 (gdouble, n_areas);
-	line_tops = g_new0 (gdouble, n_areas);
-	line_bottoms = g_new0 (gdouble, n_areas);
-	line_x1 = g_new0 (gdouble, n_areas);
-	line_x2 = g_new0 (gdouble, n_areas);
+	line_centers = g_new0(gdouble, n_areas);
+	line_tops = g_new0(gdouble, n_areas);
+	line_bottoms = g_new0(gdouble, n_areas);
+	line_x1 = g_new0(gdouble, n_areas);
+	line_x2 = g_new0(gdouble, n_areas);
 
-	line_first = g_new0 (gint, n_areas);
-	line_last = g_new0 (gint, n_areas);
+	line_first = g_new0(gint, n_areas);
+	line_last = g_new0(gint, n_areas);
 
 
 	/*
@@ -5552,36 +5552,29 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	 * ============================================================
 	 */
 
-	for (i = 0; i < n_areas; i++) {
+	for (i=0; i<n_areas; i++) {
 		gdouble center_y;
 		guint j;
 		gboolean added = FALSE;
 
 		center_y = (areas[i].y1 + areas[i].y2) / 2.0;
 
-		for (j = 0; j < n_lines; j++) {
+		for (j=0; j<n_lines; j++) {
 
 			if (fabs (center_y - line_centers[j]) <= line_tolerance) {
-
-				/*
-				 * Glyph paling kiri.
-				 */
+				// Glyph paling kiri.
 				if (areas[i].x1 < line_x1[j]) {
 					line_x1[j] = areas[i].x1;
 					line_first[j] = i;
 				}
 
-				/*
-				 * Glyph paling kanan.
-				 */
+				// Glyph paling kanan.
 				if (areas[i].x2 > line_x2[j]) {
 					line_x2[j] = areas[i].x2;
 					line_last[j] = i;
 				}
 
-				/*
-				 * Batas vertikal line.
-				 */
+				// Batas vertikal line.
 				if (areas[i].y1 < line_tops[j])
 					line_tops[j] = areas[i].y1;
 
@@ -5594,7 +5587,6 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 		}
 
 		if (!added) {
-
 			line_centers[n_lines] = center_y;
 
 			line_tops[n_lines] = areas[i].y1;
@@ -5610,6 +5602,99 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 		}
 	}
 
+    /*
+     * ============================================================
+     * DEBUG PASS 1
+     *
+     * Tampilkan hasil pengelompokan glyph -> LINE
+     * ============================================================
+     */
+    g_print ("\n========== PASS 1 RESULT ==========\n");
+
+    for (i = 0; i < n_lines; i++) {
+
+        gchar *line_text;
+
+        line_text = ev_view_get_text_for_glyph_range (
+            view,
+            page,
+            line_first[i],
+            line_last[i]);
+
+        g_print (
+            "LINE %u: "
+            "first=%d last=%d "
+            "x1=%.2f x2=%.2f "
+            "y1=%.2f y2=%.2f | \"%s\"\n",
+            i,
+            line_first[i],
+            line_last[i],
+            line_x1[i],
+            line_x2[i],
+            line_tops[i],
+            line_bottoms[i],
+            line_text ? line_text : "");
+
+        g_free (line_text);
+    }
+
+    g_print ("==================================\n");
+
+
+    /*
+    {
+        const gchar *text;
+
+        text = ev_page_cache_get_text (view->page_cache, page);
+
+        g_print ("\n");
+        g_print ("================ PASS 1 ================\n");
+        g_print ("PAGE: %d\n", page);
+        g_print ("TOTAL GLYPH : %u\n", n_areas);
+        g_print ("TOTAL LINE  : %u\n", n_lines);
+        g_print ("\n");
+
+        if (text) {
+            for (guint j = 0; j < n_lines; j++) {
+                GString *line_text;
+                guint k;
+
+                line_text = g_string_new ("");
+
+                for (k = line_first[j];
+                     k <= line_last[j];
+                     k++) {
+
+                    /*
+                     * Untuk debugging PDF ASCII sederhana.
+                     
+                    if (k < strlen (text)) {
+                        gchar c[2];
+
+                        c[0] = text[k];
+                        c[1] = '\0';
+
+                        g_string_append (line_text, c);
+                    }
+                }
+
+                g_print (
+                    "LINE %u: x1=%.2f x2=%.2f "
+                    "y1=%.2f y2=%.2f | \"%s\"\n",
+                    j,
+                    line_x1[j],
+                    line_x2[j],
+                    line_tops[j],
+                    line_bottoms[j],
+                    line_text->str);
+
+                g_string_free (line_text, TRUE);
+            }
+        }
+
+        g_print ("========================================\n\n");
+    }*/
+
 
 	/*
 	 * ============================================================
@@ -5620,11 +5705,9 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	 */
 
 	if (n_lines > 0) {
-
 		guint paragraph_first_line = 0;
 
-		for (i = 1; i <= n_lines; i++) {
-
+		for (i=1; i<=n_lines; i++) {
 			gboolean new_paragraph = FALSE;
 
 			if (i == n_lines) {
@@ -5686,7 +5769,7 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 				 * ------------------------------------------------
 				 */
 
-				if (0) {//!new_paragraph) {
+				if (!new_paragraph) {
 
 					gdouble first_x;
 					gdouble current_x;
@@ -6012,6 +6095,10 @@ ev_view_load_paragraph_config (EvView *view)
     view->paragraph_bg_g = 1.0;
     view->paragraph_bg_b = 1.0;
 
+    view->line_tolerance = 3.0;
+    view->paragraph_gap_factor = 1.0;
+    view->indent_tolerance = 5.0;
+
     home = g_get_home_dir ();
 
     path = g_build_filename (
@@ -6100,8 +6187,25 @@ ev_view_load_paragraph_config (EvView *view)
                 &view->paragraph_bg_r,
                 &view->paragraph_bg_g,
                 &view->paragraph_bg_b);
-        }
 
+        } else if (g_strcmp0 (kv[0], "line_tolerance") == 0) {
+            sscanf(
+                kv[1],
+                "%lf",
+                &view->line_tolerance);
+
+        } else if (g_strcmp0 (kv[0], "paragraph_gap_factor") == 0) {
+            sscanf(
+                kv[1],
+                "%lf",
+                &view->paragraph_gap_factor);
+
+        } else if (g_strcmp0 (kv[0], "indent_tolerance") == 0) {
+            sscanf(
+                kv[1],
+                "%lf",
+                &view->indent_tolerance);
+        }
         g_strfreev (kv);
     }
 
