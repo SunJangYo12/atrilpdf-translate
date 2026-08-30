@@ -5518,6 +5518,323 @@ ev_view_is_newline_area (EvView *view,
     return result;
 }
 
+// deteksi semua kolom di page
+static gboolean
+ev_view_get_text_columns_for_page (EvView          *view,
+                                   gint             page,
+                                   EvTextColumn   **columns,
+                                   guint           *n_columns)
+{
+    EvRectangle *areas = NULL;
+    guint n_areas = 0;
+
+    gdouble line_tolerance = 3.0;
+    gdouble column_gap = 30.0;
+
+    gdouble *line_centers = NULL;
+    gdouble *line_x1 = NULL;
+    gdouble *line_x2 = NULL;
+    gdouble *line_y1 = NULL;
+    gdouble *line_y2 = NULL;
+
+    gint *line_first = NULL;
+    gint *line_last = NULL;
+
+    guint n_lines = 0;
+    guint i;
+
+    EvTextColumn *result = NULL;
+    guint result_count = 0;
+
+    if (!ev_page_cache_get_text_layout (view->page_cache,
+                                        page,
+                                        &areas,
+                                        &n_areas))
+        return FALSE;
+
+    if (!areas || n_areas == 0)
+        return FALSE;
+
+
+    /*
+     * ============================================================
+     * PASS 1
+     *
+     * Glyph -> LINE
+     * ============================================================
+     */
+
+    line_centers = g_new0 (gdouble, n_areas);
+    line_x1      = g_new0 (gdouble, n_areas);
+    line_x2      = g_new0 (gdouble, n_areas);
+    line_y1      = g_new0 (gdouble, n_areas);
+    line_y2      = g_new0 (gdouble, n_areas);
+
+    line_first   = g_new0 (gint, n_areas);
+    line_last    = g_new0 (gint, n_areas);
+
+
+    for (i = 0; i < n_areas; i++) {
+
+        if (ev_view_is_newline_area (view, page, i))
+            continue;
+
+        gdouble center_y;
+        guint j;
+        gboolean added = FALSE;
+
+        center_y =
+            (areas[i].y1 + areas[i].y2) / 2.0;
+
+
+        for (j = 0; j < n_lines; j++) {
+
+            if (fabs (center_y - line_centers[j])
+                <= line_tolerance) {
+
+                /*
+                 * X kiri.
+                 */
+                if (areas[i].x1 < line_x1[j]) {
+                    line_x1[j] = areas[i].x1;
+                    line_first[j] = i;
+                }
+
+                /*
+                 * X kanan.
+                 */
+                if (areas[i].x2 > line_x2[j]) {
+                    line_x2[j] = areas[i].x2;
+                    line_last[j] = i;
+                }
+
+                /*
+                 * Y atas.
+                 */
+                if (areas[i].y1 < line_y1[j])
+                    line_y1[j] = areas[i].y1;
+
+                /*
+                 * Y bawah.
+                 */
+                if (areas[i].y2 > line_y2[j])
+                    line_y2[j] = areas[i].y2;
+
+                added = TRUE;
+                break;
+            }
+        }
+
+
+        if (!added) {
+
+            line_centers[n_lines] = center_y;
+
+            line_x1[n_lines] = areas[i].x1;
+            line_x2[n_lines] = areas[i].x2;
+
+            line_y1[n_lines] = areas[i].y1;
+            line_y2[n_lines] = areas[i].y2;
+
+            line_first[n_lines] = i;
+            line_last[n_lines] = i;
+
+            n_lines++;
+        }
+    }
+
+g_print ("========== LINES ==========\n");
+
+for (i = 0; i < n_lines; i++) {
+
+    g_print ("LINE %u: "
+             "first=%d last=%d "
+             "x1=%.2f x2=%.2f "
+             "y1=%.2f y2=%.2f "
+             "width=%.2f height=%.2f\n",
+             i,
+             line_first[i],
+             line_last[i],
+             line_x1[i],
+             line_x2[i],
+             line_y1[i],
+             line_y2[i],
+             line_x2[i] - line_x1[i],
+             line_y2[i] - line_y1[i]);
+}
+
+g_print ("LINES: %u\n", n_lines);
+
+
+
+
+    /*
+     * ============================================================
+     * PASS 2
+     *
+     * LINE -> COLUMN
+     *
+     * Untuk sementara kita gunakan X.
+     * ============================================================
+     */
+
+    for (i = 0; i < n_lines; i++) {
+
+        guint c;
+        gboolean added = FALSE;
+
+        for (c = 0; c < result_count; c++) {
+
+            /*
+             * Apakah line ini berada pada
+             * area X column yang sama?
+             */
+
+            gdouble overlap;
+
+            overlap =
+                MIN (line_x2[i], result[c].x2) -
+                MAX (line_x1[i], result[c].x1);
+
+
+            if (overlap >= 0) {
+
+                /*
+                 * Masih overlap dengan column.
+                 *
+                 * Perluas bounding box.
+                 */
+
+                if (line_x1[i] < result[c].x1)
+                    result[c].x1 = line_x1[i];
+
+                if (line_x2[i] > result[c].x2)
+                    result[c].x2 = line_x2[i];
+
+                if (line_y1[i] <
+                    result[c].rect.y)
+                    result[c].rect.y =
+                        (gint) floor (line_y1[i]);
+
+                if (line_y2[i] >
+                    result[c].rect.y +
+                    result[c].rect.height)
+                    result[c].rect.height =
+                        (gint) ceil (line_y2[i]) -
+                        result[c].rect.y;
+
+                if (line_first[i] <
+                    result[c].first_index)
+                    result[c].first_index =
+                        line_first[i];
+
+                if (line_last[i] >
+                    result[c].last_index)
+                    result[c].last_index =
+                        line_last[i];
+
+                added = TRUE;
+                break;
+            }
+        }
+
+
+        /*
+         * Tidak masuk column manapun.
+         *
+         * Buat column baru.
+         */
+        if (!added) {
+
+            result = g_realloc (
+                result,
+                sizeof (EvTextColumn) *
+                (result_count + 1));
+
+
+            result[result_count].x1 =
+                line_x1[i];
+
+            result[result_count].x2 =
+                line_x2[i];
+
+            result[result_count].rect.x =
+                (gint) floor (line_x1[i]);
+
+            result[result_count].rect.y =
+                (gint) floor (line_y1[i]);
+
+            result[result_count].rect.width =
+                (gint) ceil (
+                    line_x2[i] - line_x1[i]);
+
+            result[result_count].rect.height =
+                (gint) ceil (
+                    line_y2[i] - line_y1[i]);
+
+            result[result_count].first_index =
+                line_first[i];
+
+            result[result_count].last_index =
+                line_last[i];
+
+            result_count++;
+        }
+    }
+
+
+    /*
+     * ============================================================
+     * DEBUG
+     * ============================================================
+     */
+
+    g_print ("\n");
+    g_print ("========== COLUMNS ==========\n");
+    g_print ("PAGE: %d\n", page);
+    g_print ("LINES: %u\n", n_lines);
+    g_print ("COLUMNS: %u\n", result_count);
+
+    for (i = 0; i < result_count; i++) {
+
+        g_print (
+            "COLUMN %u: "
+            "x1=%.2f x2=%.2f "
+            "y=%d height=%d "
+            "first=%d last=%d\n",
+            i,
+            result[i].x1,
+            result[i].x2,
+            result[i].rect.y,
+            result[i].rect.height,
+            result[i].first_index,
+            result[i].last_index);
+    }
+
+    g_print ("=============================\n");
+
+
+    g_free (line_centers);
+    g_free (line_x1);
+    g_free (line_x2);
+    g_free (line_y1);
+    g_free (line_y2);
+
+    g_free (line_first);
+    g_free (line_last);
+
+
+    if (result_count == 0) {
+        g_free (result);
+        return FALSE;
+    }
+
+
+    *columns = result;
+    *n_columns = result_count;
+
+    return TRUE;
+}
 
 // deteksi semua paragraf by page
 static gboolean
@@ -6268,6 +6585,16 @@ draw_one_page (EvView       *view,
         }
 
         if (view->is_overlay == 0) return;
+
+        EvTextColumn *kolom = NULL;
+        guint n_kolom = 0;
+
+        if (ev_view_get_text_columns_for_page (
+                        view,
+                        page,
+                        &kolom,
+                        &n_kolom)) {
+        }
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;

@@ -248,6 +248,15 @@ typedef struct {
 
         GdkRectangle rect;
 } EvParagraphOverlay;
+typedef struct {
+    gint first_index;
+    gint last_index;
+
+    GdkRectangle rect;
+
+    gdouble x1;
+    gdouble x2;
+} EvTextColumn;
 
 
 
