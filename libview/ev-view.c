@@ -5655,30 +5655,6 @@ ev_view_get_text_columns_for_page (EvView          *view,
         }
     }
 
-g_print ("========== LINES ==========\n");
-
-for (i = 0; i < n_lines; i++) {
-
-    g_print ("LINE %u: "
-             "first=%d last=%d "
-             "x1=%.2f x2=%.2f "
-             "y1=%.2f y2=%.2f "
-             "width=%.2f height=%.2f\n",
-             i,
-             line_first[i],
-             line_last[i],
-             line_x1[i],
-             line_x2[i],
-             line_y1[i],
-             line_y2[i],
-             line_x2[i] - line_x1[i],
-             line_y2[i] - line_y1[i]);
-}
-
-g_print ("LINES: %u\n", n_lines);
-
-
-
 
     /*
      * ============================================================
@@ -5793,38 +5769,6 @@ g_print ("LINES: %u\n", n_lines);
             result_count++;
         }
     }
-
-
-    /*
-     * ============================================================
-     * DEBUG
-     * ============================================================
-     */
-
-    g_print ("\n");
-    g_print ("========== COLUMNS ==========\n");
-    g_print ("PAGE: %d\n", page);
-    g_print ("LINES: %u\n", n_lines);
-    g_print ("COLUMNS: %u\n", result_count);
-
-    for (i = 0; i < result_count; i++) {
-
-        g_print (
-            "COLUMN %u: "
-            "x1=%.2f x2=%.2f "
-            "y=%d height=%d "
-            "first=%d last=%d\n",
-            i,
-            result[i].x1,
-            result[i].x2,
-            result[i].rect.y,
-            result[i].rect.height,
-            result[i].first_index,
-            result[i].last_index);
-    }
-
-    g_print ("=============================\n");
-
 
     g_free (line_centers);
     g_free (line_x1);
@@ -6606,7 +6550,65 @@ draw_one_page (EvView       *view,
                         page,
                         &kolom,
                         &n_kolom)) {
+            if (view->paragraph_overlays) {
+                g_list_free_full (
+                    view->paragraph_overlays,
+                    g_free);
+
+                view->paragraph_overlays = NULL;
+            }
+
+            for (gint i=0; i<n_kolom; i++) {
+                EvRectangle doc_rect;
+                GdkRectangle view_rect;
+
+                doc_rect.x1 = kolom[i].rect.x;
+                doc_rect.y1 = kolom[i].rect.y;
+                doc_rect.x2 = kolom[i].rect.x +
+                              kolom[i].rect.width;
+                doc_rect.y2 = kolom[i].rect.y +
+                              kolom[i].rect.height;
+
+                doc_rect_to_view_rect (view,
+                                       page,
+                                       &doc_rect,
+                                       &view_rect);
+
+                view_rect.x -= view->scroll_x;
+                view_rect.y -= view->scroll_y;
+
+                /*g_print ("  view rect : %d,%d %dx%d\n",
+                         view_rect.x,
+                         view_rect.y,
+                         view_rect.width,
+                         view_rect.height);*/
+
+
+                EvParagraphOverlay *overlay;
+
+                overlay = g_new0 (
+                    EvParagraphOverlay,
+                    1);
+
+                overlay->page = page;
+                overlay->index = i;
+
+                overlay->rect = view_rect;
+
+                view->paragraph_overlays =
+                    g_list_append (
+                        view->paragraph_overlays,
+                        overlay);
+
+                draw_overlay_paragraf(view, cr, "zzzz",
+                         view_rect.x,
+                         view_rect.y,
+                         view_rect.width,
+                         view_rect.height, page, i);
+            }
         }
+
+        return;
 
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
