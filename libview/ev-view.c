@@ -24,6 +24,9 @@
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
+//#include <iostream>
+//#include <fstream>
+//#include <jsoncpp/json/json.h> //apt install libjsoncpp-dev; dpkg -L libjsoncpp-dev
 
 #include <glib/gi18n-lib.h>
 #include <gtk/gtk.h>
@@ -4587,9 +4590,12 @@ on_translate_button_press(GtkWidget      *widget,
         return FALSE;
 
     /*
-     * Klik kanan
+     * Klik tengah
      */
-    if (event->button == 3) {
+    if (event->button == 2) {
+        printf("sdsd\n");
+
+    } else if (event->button == 3) {
 
         if (view->hide_all_paragraph_overlay)
             view->hide_all_paragraph_overlay = FALSE;
@@ -4792,7 +4798,6 @@ show_translate_window (EvView *view,
         view->translate_window);
 }
 
-
 static gboolean
 ev_view_motion_notify_event (GtkWidget      *widget,
 			     GdkEventMotion *event)
@@ -4872,11 +4877,9 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
                         view->translate_rect = view_rect;
 
-                        show_translate_window (
-                            view, x,y);
+                        show_translate_window(view, x, y);
 
                         gtk_widget_queue_draw (GTK_WIDGET (view));
-
 
                         /*g_print (
                             "HOVER PARAGRAPH: page=%d index=%u direction=\n",
@@ -5518,280 +5521,6 @@ ev_view_is_newline_area (EvView *view,
     return result;
 }
 
-// deteksi semua kolom di page
-static gboolean
-ev_view_get_text_columns_for_page (EvView          *view,
-                                   gint             page,
-                                   EvTextColumn   **columns,
-                                   guint           *n_columns)
-{
-    EvRectangle *areas = NULL;
-    guint n_areas = 0;
-
-    gdouble line_tolerance = 3.0;
-    gdouble x_tolerance = 5.0;
-    gdouble column_gap = 30.0;
-
-    gdouble *line_centers = NULL;
-    gdouble *line_x1 = NULL;
-    gdouble *line_x2 = NULL;
-    gdouble *line_y1 = NULL;
-    gdouble *line_y2 = NULL;
-
-    gint *line_first = NULL;
-    gint *line_last = NULL;
-
-    guint n_lines = 0;
-    guint i;
-
-    EvTextColumn *result = NULL;
-    guint result_count = 0;
-
-    if (!ev_page_cache_get_text_layout (view->page_cache,
-                                        page,
-                                        &areas,
-                                        &n_areas))
-        return FALSE;
-
-    if (!areas || n_areas == 0)
-        return FALSE;
-
-
-    /*
-     * ============================================================
-     * PASS 1
-     *
-     * Glyph -> LINE
-     * ============================================================
-     */
-
-    line_centers = g_new0 (gdouble, n_areas);
-    line_x1      = g_new0 (gdouble, n_areas);
-    line_x2      = g_new0 (gdouble, n_areas);
-    line_y1      = g_new0 (gdouble, n_areas);
-    line_y2      = g_new0 (gdouble, n_areas);
-
-    line_first   = g_new0 (gint, n_areas);
-    line_last    = g_new0 (gint, n_areas);
-
-
-    for (i = 0; i < n_areas; i++) {
-
-        if (ev_view_is_newline_area (view, page, i))
-            continue;
-
-        gdouble center_y;
-        guint j;
-        gboolean added = FALSE;
-
-        center_y =
-            (areas[i].y1 + areas[i].y2) / 2.0;
-
-
-        for (j = 0; j < n_lines; j++) {
-
-            gboolean y_match;
-            gboolean x_match;
-
-            y_match =
-                fabs (center_y - line_centers[j]) <= line_tolerance;
-
-            x_match =
-                (areas[i].x1 <= line_x2[j] + x_tolerance) &&
-                (areas[i].x2 >= line_x1[j] - x_tolerance);
-
-            if (y_match && x_match) {
-            //if (fabs (center_y - line_centers[j])
-            //    <= line_tolerance) {
-
-                /*
-                 * X kiri.
-                 */
-                if (areas[i].x1 < line_x1[j]) {
-                    line_x1[j] = areas[i].x1;
-                    line_first[j] = i;
-                }
-
-                /*
-                 * X kanan.
-                 */
-                if (areas[i].x2 > line_x2[j]) {
-                    line_x2[j] = areas[i].x2;
-                    line_last[j] = i;
-                }
-
-                /*
-                 * Y atas.
-                 */
-                if (areas[i].y1 < line_y1[j])
-                    line_y1[j] = areas[i].y1;
-
-                /*
-                 * Y bawah.
-                 */
-                if (areas[i].y2 > line_y2[j])
-                    line_y2[j] = areas[i].y2;
-
-                added = TRUE;
-                break;
-            }
-        }
-
-
-        if (!added) {
-
-            line_centers[n_lines] = center_y;
-
-            line_x1[n_lines] = areas[i].x1;
-            line_x2[n_lines] = areas[i].x2;
-
-            line_y1[n_lines] = areas[i].y1;
-            line_y2[n_lines] = areas[i].y2;
-
-            line_first[n_lines] = i;
-            line_last[n_lines] = i;
-
-            n_lines++;
-        }
-    }
-
-
-    /*
-     * ============================================================
-     * PASS 2
-     *
-     * LINE -> COLUMN
-     *
-     * Untuk sementara kita gunakan X.
-     * ============================================================
-     */
-
-    for (i = 0; i < n_lines; i++) {
-
-        guint c;
-        gboolean added = FALSE;
-
-        for (c = 0; c < result_count; c++) {
-
-            /*
-             * Apakah line ini berada pada
-             * area X column yang sama?
-             */
-
-            gdouble overlap;
-
-            overlap =
-                MIN (line_x2[i], result[c].x2) -
-                MAX (line_x1[i], result[c].x1);
-
-
-            if (overlap >= 0) {
-
-                /*
-                 * Masih overlap dengan column.
-                 *
-                 * Perluas bounding box.
-                 */
-
-                if (line_x1[i] < result[c].x1)
-                    result[c].x1 = line_x1[i];
-
-                if (line_x2[i] > result[c].x2)
-                    result[c].x2 = line_x2[i];
-
-                if (line_y1[i] <
-                    result[c].rect.y)
-                    result[c].rect.y =
-                        (gint) floor (line_y1[i]);
-
-                if (line_y2[i] >
-                    result[c].rect.y +
-                    result[c].rect.height)
-                    result[c].rect.height =
-                        (gint) ceil (line_y2[i]) -
-                        result[c].rect.y;
-
-                if (line_first[i] <
-                    result[c].first_index)
-                    result[c].first_index =
-                        line_first[i];
-
-                if (line_last[i] >
-                    result[c].last_index)
-                    result[c].last_index =
-                        line_last[i];
-
-                added = TRUE;
-                break;
-            }
-        }
-
-
-        /*
-         * Tidak masuk column manapun.
-         *
-         * Buat column baru.
-         */
-        if (!added) {
-
-            result = g_realloc (
-                result,
-                sizeof (EvTextColumn) *
-                (result_count + 1));
-
-
-            result[result_count].x1 =
-                line_x1[i];
-
-            result[result_count].x2 =
-                line_x2[i];
-
-            result[result_count].rect.x =
-                (gint) floor (line_x1[i]);
-
-            result[result_count].rect.y =
-                (gint) floor (line_y1[i]);
-
-            result[result_count].rect.width =
-                (gint) ceil (
-                    line_x2[i] - line_x1[i]);
-
-            result[result_count].rect.height =
-                (gint) ceil (
-                    line_y2[i] - line_y1[i]);
-
-            result[result_count].first_index =
-                line_first[i];
-
-            result[result_count].last_index =
-                line_last[i];
-
-            result_count++;
-        }
-    }
-
-    g_free (line_centers);
-    g_free (line_x1);
-    g_free (line_x2);
-    g_free (line_y1);
-    g_free (line_y2);
-
-    g_free (line_first);
-    g_free (line_last);
-
-
-    if (result_count == 0) {
-        g_free (result);
-        return FALSE;
-    }
-
-
-    *columns = result;
-    *n_columns = result_count;
-
-    return TRUE;
-}
-
 // deteksi semua paragraf by page
 static gboolean
 ev_view_get_text_paragraphs_for_page (EvView            *view,
@@ -6112,6 +5841,11 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 	return TRUE;
 }
 
+
+static void ev_process_translate(gchar *text, gint page, guint paragraf) {
+    printf("transate PAGE: %d paragraf: %d\n", page, paragraf);
+}
+
 static void
 draw_overlay_paragraf (EvView  *view,
                        cairo_t *cr,
@@ -6130,6 +5864,8 @@ draw_overlay_paragraf (EvView  *view,
 
         return;
     }
+
+    ev_process_translate(text, page, index);
 
     cairo_text_extents_t extents;
     gdouble line_height = 20.0;
@@ -6542,74 +6278,6 @@ draw_one_page (EvView       *view,
 
         if (view->is_overlay == 0) return;
 
-        EvTextColumn *kolom = NULL;
-        guint n_kolom = 0;
-
-        if (ev_view_get_text_columns_for_page (
-                        view,
-                        page,
-                        &kolom,
-                        &n_kolom)) {
-            if (view->paragraph_overlays) {
-                g_list_free_full (
-                    view->paragraph_overlays,
-                    g_free);
-
-                view->paragraph_overlays = NULL;
-            }
-
-            for (gint i=0; i<n_kolom; i++) {
-                EvRectangle doc_rect;
-                GdkRectangle view_rect;
-
-                doc_rect.x1 = kolom[i].rect.x;
-                doc_rect.y1 = kolom[i].rect.y;
-                doc_rect.x2 = kolom[i].rect.x +
-                              kolom[i].rect.width;
-                doc_rect.y2 = kolom[i].rect.y +
-                              kolom[i].rect.height;
-
-                doc_rect_to_view_rect (view,
-                                       page,
-                                       &doc_rect,
-                                       &view_rect);
-
-                view_rect.x -= view->scroll_x;
-                view_rect.y -= view->scroll_y;
-
-                /*g_print ("  view rect : %d,%d %dx%d\n",
-                         view_rect.x,
-                         view_rect.y,
-                         view_rect.width,
-                         view_rect.height);*/
-
-
-                EvParagraphOverlay *overlay;
-
-                overlay = g_new0 (
-                    EvParagraphOverlay,
-                    1);
-
-                overlay->page = page;
-                overlay->index = i;
-
-                overlay->rect = view_rect;
-
-                view->paragraph_overlays =
-                    g_list_append (
-                        view->paragraph_overlays,
-                        overlay);
-
-                draw_overlay_paragraf(view, cr, "zzzz",
-                         view_rect.x,
-                         view_rect.y,
-                         view_rect.width,
-                         view_rect.height, page, i);
-            }
-        }
-
-        return;
-
         EvTextParagraph *paragraphs = NULL;
         gchar *paragraph_text;
         guint n_paragraphs = 0;
@@ -6628,7 +6296,6 @@ draw_one_page (EvView       *view,
 
                     view->paragraph_overlays = NULL;
                 }
-
 
                 /*g_print ("\n========== PARAGRAPHS ==========\n");
                 g_print ("PAGE: %d\n", page);
