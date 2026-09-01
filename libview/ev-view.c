@@ -24,9 +24,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
-//#include <iostream>
-//#include <fstream>
-//#include <jsoncpp/json/json.h> //apt install libjsoncpp-dev; dpkg -L libjsoncpp-dev
+#include <sys/stat.h>
 
 #include <glib/gi18n-lib.h>
 #include <gtk/gtk.h>
@@ -5842,8 +5840,42 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 }
 
 
-static void ev_process_translate(gchar *text, gint page, guint paragraf) {
-    printf("transate PAGE: %d paragraf: %d\n", page, paragraf);
+static void ev_process_translate(EvView *view,
+                                 gchar *text,
+                                 gint page,
+                                 guint paragraf) {
+    char path_translate[300];
+    char file_translate[300];
+    char cmd[300];
+
+    char *uri = ev_document_get_uri(view->document);
+    char *filename = g_filename_from_uri(uri, NULL, NULL);
+
+    sprintf(path_translate, "%s_translated/original/%d", filename, page);
+    sprintf(file_translate, "%s/%d", path_translate, paragraf);
+    sprintf(cmd, "mkdir -p %s", path_translate);
+
+    // Buat folder kalau belum ada
+    struct stat st = {0};
+    if (stat(path_translate, &st) == -1) {
+        system(cmd);
+        printf("Create folder: %d\n", page);
+    }
+
+    if (stat(file_translate, &st) == -1) {
+        FILE *f = fopen(file_translate, "w");
+        if (f == NULL) {
+            printf("Gagal buat file: %d\n", paragraf);
+            return 1;
+        }
+        fprintf(f, text);
+        fclose(f);
+    }
+
+    /*printf("transate PAGE: %d, paragraf: %d, tite: %s\n",
+                page,
+                paragraf,
+                out_translate);*/
 }
 
 static void
@@ -5865,7 +5897,7 @@ draw_overlay_paragraf (EvView  *view,
         return;
     }
 
-    ev_process_translate(text, page, index);
+    ev_process_translate(view, text, page, index);
 
     cairo_text_extents_t extents;
     gdouble line_height = 20.0;
@@ -6370,13 +6402,11 @@ draw_one_page (EvView       *view,
                                  view_rect.y,
                                  view_rect.width,
                                  view_rect.height, page, i);
-/*
+
                         if (paragraph_text) {
-                                g_print ("  text  :\n%s\n", paragraph_text);
-                                g_free (paragraph_text);
-                        } else {
-                                g_print ("  text  : <NULL>\n");
-                        }*/
+                            //g_print ("  text  :\n%s\n", paragraph_text);
+                            g_free (paragraph_text);
+                        }
 
                 }
 
