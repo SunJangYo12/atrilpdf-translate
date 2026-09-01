@@ -11,6 +11,7 @@ tn = telnetlib.Telnet(HOST, PORT)
 tn.read_until(b"Translate Server 1.0")
 
 
+
 all = []
 for folder, subfolders, files in os.walk("original"):
     for file in files:
@@ -36,9 +37,10 @@ for full in all:
         for i in range(4):
             tn.write(b"\n")
 
-        result = tn.read_until(b"\n\n============= Text Output ================\n\n\n", timeout=30)
+        result = tn.read_until(b"============= zzzzzzText Output ================", timeout=30)
         result = result.decode("utf-8", errors="ignore")
         result = result.split("============= Text Output ================")
+        result = result[1].split("============= zzzzzzText Output ================")
 
         with open(outfile, "w") as wd:
             wd.write(result[0])
