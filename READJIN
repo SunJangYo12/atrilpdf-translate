@@ -1,3 +1,14 @@
+Modifikasi pdf reader(Atril) penambahan translate overlay per paragraf.
+
+# Usage
+```
+1). Buka pdf lalu scroll sampai akhir.
+2). Akan ada folder baru dengan nama yang sama dengan file pdf dan dilokasi yang sama.
+3). Copy translate.py ke folder itu dan jalankan, NOTE: API patch dengan "============= zzzzzzText Output ================"
+4). Sekarang jika file pdf dibuka lagi, overlay akan berisi text translat
+4). Enjoy
+```
+
 # Example config
 ```
 mkdir -p /home/jin/.jinconfig
@@ -13,3 +24,4 @@ is_overlay=1
 
 ```
 NOTE: "is_overlay" show all overlay and translate button fitur utama
+
