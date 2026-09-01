@@ -5840,18 +5840,25 @@ ev_view_get_text_paragraphs_for_page (EvView            *view,
 }
 
 
-static void ev_process_translate(EvView *view,
+static gchar *ev_process_translate(EvView *view,
                                  gchar *text,
                                  gint page,
                                  guint paragraf) {
+    gchar *isi = NULL;
+    gsize isi_len;
+    GError *error = NULL;
+
     char path_translate[300];
     char file_translate[300];
+    char result_translate[300];
     char cmd[300];
 
     char *uri = ev_document_get_uri(view->document);
     char *filename = g_filename_from_uri(uri, NULL, NULL);
 
     sprintf(path_translate, "%s_translated/original/%d", filename, page);
+    sprintf(result_translate, "%s_translated/translate/%d/%d", filename, page, paragraf);
+
     sprintf(file_translate, "%s/%d", path_translate, paragraf);
     sprintf(cmd, "mkdir -p %s", path_translate);
 
@@ -5870,18 +5877,21 @@ static void ev_process_translate(EvView *view,
         }
         fprintf(f, text);
         fclose(f);
+        return text;
+    } else {
+        if (!g_file_get_contents(result_translate, &isi, &isi_len, &error)) {
+            //printf("Gagal baca file: %s\n", result_translate);
+            g_error_free(error);
+            return text;
+        }
+        return isi;
     }
-
-    /*printf("transate PAGE: %d, paragraf: %d, tite: %s\n",
-                page,
-                paragraf,
-                out_translate);*/
 }
 
 static void
 draw_overlay_paragraf (EvView  *view,
                        cairo_t *cr,
-                       gchar   *text,
+                       gchar   *ztext,
                        gint     x,
                        gint     y,
                        gint     width,
@@ -5897,7 +5907,7 @@ draw_overlay_paragraf (EvView  *view,
         return;
     }
 
-    ev_process_translate(view, text, page, index);
+    gchar *text = ev_process_translate(view, ztext, page, index);
 
     cairo_text_extents_t extents;
     gdouble line_height = 20.0;
