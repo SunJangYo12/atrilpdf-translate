@@ -25,11 +25,16 @@ for full in all:
     print("\n"+full)
 
     outfile = full.replace("original", "translate")
+
+    if os.path.exists(outfile):
+        print("SKIP: "+outfile)
+        continue
+
     outpath = os.path.dirname(outfile)
 
     os.makedirs(outpath, exist_ok=True)
 
-    with open(full, "r") as fd:
+    with open(full, "r", encoding="utf-8", errors="ignore") as fd: #errors="replace"
         data = fd.read()
 
         tn.write(data.encode('utf-8'))
