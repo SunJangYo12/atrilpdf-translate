@@ -3505,7 +3505,7 @@ ev_view_scroll_event (GtkWidget      *widget,
              */
             if (event->direction == GDK_SCROLL_DOWN) {
 
-                view->paragraph_scroll += 30.0;
+                view->paragraph_scroll += 05.0;
             }
 
             /*
@@ -3513,7 +3513,7 @@ ev_view_scroll_event (GtkWidget      *widget,
              */
             else if (event->direction == GDK_SCROLL_UP) {
 
-                view->paragraph_scroll -= 30.0;
+                view->paragraph_scroll -= 05.0;
             }
 
 
@@ -4875,7 +4875,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 
                         view->translate_rect = view_rect;
 
-                        show_translate_window(view, x, y);
+                        //show_translate_window(view, x, y);
 
                         gtk_widget_queue_draw (GTK_WIDGET (view));
 
@@ -6423,10 +6423,10 @@ draw_one_page (EvView       *view,
 
                 g_free (paragraphs);
         }
-        /*show_translate_window (
+        show_translate_window (
             view,
             view->translate_rect.x + view->translate_rect.width,
-            view->translate_rect.y);*/
+            view->translate_rect.y);
 	}
 }
 

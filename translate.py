@@ -2,7 +2,7 @@ import os
 import telnetlib
 import time
 
-HOST = "192.168.0.100"
+HOST = "192.168.0.102"
 PORT = 9090
 
 tn = telnetlib.Telnet(HOST, PORT)
@@ -45,11 +45,15 @@ for full in all:
 
         result = tn.read_until(b"============= zzzzzzText Output ================", timeout=30)
         result = result.decode("utf-8", errors="ignore")
-        result = result.split("============= Text Output ================")
-        result = result[1].split("============= zzzzzzText Output ================")
+        try:
+            result = result.split("============= Text Output ================")
+            result = result[1].split("============= zzzzzzText Output ================")
+            hasil = result[0]
+        except:
+            hasil = result
 
         with open(outfile, "w") as wd:
-            wd.write(result[0])
+            wd.write(str(hasil))
 
         time.sleep(1)
 
