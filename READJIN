@@ -8,6 +8,7 @@ Modifikasi pdf reader(Atril) penambahan translate overlay per paragraf.
 4). Sekarang jika file pdf dibuka lagi, overlay akan berisi text translat
 4). Enjoy
 ```
+NOTE: jika overlay belum muncul, tunggu sampai cpu tidak 100%
 
 # Example config
 ```
