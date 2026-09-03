@@ -4820,7 +4820,7 @@ ev_view_motion_notify_event (GtkWidget      *widget,
 	    y = event->y;
 	}
 
-
+    view->paragraph_scroll = 0;
     if (ev_view_point_in_test_paragraph (view, x, y)) {
         gint page;
         gint doc_x;
